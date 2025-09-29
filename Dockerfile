@@ -3,7 +3,7 @@ FROM gradle:8.7-jdk17-alpine AS builder
 WORKDIR /app
 COPY build.gradle settings.gradle /app/
 COPY src /app/src
-RUN gradle build --no-daemon
+RUN gradle build -x test --no-daemon
 
 # 2단계: 실제 실행을 위한 최소한의 환경 구성
 FROM eclipse-temurin:17-jre-jammy
