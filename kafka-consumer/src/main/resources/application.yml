@@ -1,0 +1,18 @@
+server:
+  port: 8081 # Consumer 서버 포트 (Producer와 구분)
+
+spring:
+  kafka:
+    # Kafka 클러스터 서버 주소 설정
+    bootstrap-servers: kafka1:9092,kafka2:9092,kafka3:9092
+
+    consumer:
+      # 그룹 내에서 메시지를 소비할 그룹 ID
+      group-id: 'kafka-consumer-group'
+      # 처음 시작할 때의 오프셋 위치, earliest는 가장 오래된 메시지부터
+      auto-offset-reset: 'earliest'
+      # Key/Value의 역직렬화 방식 설정 (JSON 형태의 메시지를 받기 위해)
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: '*' # 모든 패키지의 클래스를 신뢰 (안전한 환경에서만 사용)

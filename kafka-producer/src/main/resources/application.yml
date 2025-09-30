@@ -1,0 +1,14 @@
+server:
+  port: 8080 # Producer API 서버 포트
+
+spring:
+  kafka:
+    # Kafka 클러스터 서버 주소 설정
+    bootstrap-servers: kafka1:9092,kafka2:9092,kafka3:9092
+
+    producer:
+      # 메시지 전송 시 모든 파티션에 복제 완료까지 대기 (가장 안전한 설정)
+      acks: 'all'
+      # Key/Value의 직렬화 방식 설정 (JSON 형태의 메시지를 전송하기 위해)
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
