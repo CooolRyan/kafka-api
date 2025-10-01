@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: kafka-producer
-        image: YOUR_DOCKERHUB_USERNAME/kafka-producer:latest
+        image: cooolryan/kafka-producer:latest
         ports:
         - containerPort: 8080
         env:

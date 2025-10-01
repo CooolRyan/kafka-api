@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: kafka-api
-        image: YOUR_DOCKERHUB_USERNAME/kafka-api:latest
+        image: cooolryan/kafka-api:latest
         ports:
         - containerPort: 8080
         env:
