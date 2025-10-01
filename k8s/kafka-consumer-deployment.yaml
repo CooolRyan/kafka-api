@@ -15,6 +15,16 @@ spec:
       labels:
         app: kafka-consumer
     spec:
+      hostAliases:
+      - ip: "192.168.211.134"
+        hostnames:
+        - "kafka1"
+      - ip: "192.168.211.135"
+        hostnames:
+        - "kafka2"
+      - ip: "192.168.211.136"
+        hostnames:
+        - "kafka3"
       containers:
       - name: kafka-consumer
         image: cooolryan/kafka-consumer:latest
