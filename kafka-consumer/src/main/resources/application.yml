@@ -16,3 +16,4 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: '*' # 모든 패키지의 클래스를 신뢰 (안전한 환경에서만 사용)
+

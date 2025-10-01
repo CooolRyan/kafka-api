@@ -20,3 +20,4 @@ public class KafkaConsumerService {
         // 여기에 메시지 수신 후 처리할 비즈니스 로직을 추가할 수 있습니다.
     }
 }
+

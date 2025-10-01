@@ -12,3 +12,4 @@ spring:
       # Key/Value의 직렬화 방식 설정 (JSON 형태의 메시지를 전송하기 위해)
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+

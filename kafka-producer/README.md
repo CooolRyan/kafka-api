@@ -38,3 +38,5 @@ docker run -p 8080:8080 kafka-producer
 
 - 서버 포트: 8080
 - Kafka 서버: kafka1:9092,kafka2:9092,kafka3:9092
+
+

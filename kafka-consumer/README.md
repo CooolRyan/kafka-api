@@ -32,3 +32,5 @@ docker run -p 8081:8081 kafka-consumer
 
 Consumer는 `my-test-topic` 토픽의 메시지를 수신하여 로그로 출력합니다.
 수신된 메시지의 키, 값, 파티션, 오프셋 정보가 로그에 기록됩니다.
+
+
