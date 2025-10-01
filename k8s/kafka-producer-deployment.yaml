@@ -27,7 +27,7 @@ spec:
         - "kafka3"
       containers:
       - name: kafka-producer
-        image: cooolryan/kafka-producer:v1
+        image: docker.io/cooolryan/kafka-producer:v1
         ports:
         - containerPort: 8080
         env:
