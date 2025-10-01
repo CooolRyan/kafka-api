@@ -98,8 +98,8 @@ kubectl set image deployment/kafka-api kafka-api=YOUR_USERNAME/kafka-api:latest 
 - 이미지 태그: `develop` 또는 `latest`
 
 #### 6.2 운영 환경  
-- 브랜치: `main`
-- 이미지 태그: `main` 또는 `latest`
+- 브랜치: `master`
+- 이미지 태그: `master` 또는 `latest`
 
 ### 7. 모니터링
 
