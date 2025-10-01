@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: kafka-consumer
-        image: YOUR_DOCKERHUB_USERNAME/kafka-consumer:latest
+        image: cooolryan/kafka-consumer:latest
         ports:
         - containerPort: 8080
         env:
