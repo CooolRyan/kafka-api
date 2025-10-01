@@ -41,6 +41,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
+    - name: Make gradlew executable
+      working-directory: ./kafka-consumer
+      run: chmod +x gradlew
+
     - name: Build with Gradle
       working-directory: ./kafka-consumer
       run: ./gradlew build -x test
