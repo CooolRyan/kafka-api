@@ -27,7 +27,7 @@ spec:
         - "kafka3"
       containers:
       - name: kafka-consumer
-        image: docker.io/cooolryan/kafka-consumer:v1
+        image: docker.io/cooolryan/kafka-consumer:develop
         ports:
         - containerPort: 8080
         env:

@@ -29,7 +29,7 @@ spec:
         - "kafka3"
       containers:
       - name: kafka-api
-        image: docker.io/cooolryan/kafka-api:v1
+        image: docker.io/cooolryan/kafka-api:develop
         ports:
         - containerPort: 8080
         env:
