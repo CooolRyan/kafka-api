@@ -11,5 +11,3 @@ public class KafkaConsumerApplication {
 	}
 
 }
-
-//dev test
