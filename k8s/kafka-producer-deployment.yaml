@@ -69,3 +69,19 @@ spec:
     nodePort: 30081
     protocol: TCP
   type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-producer-lb
+  namespace: kafka-microservices
+  labels:
+    app: kafka-producer
+spec:
+  selector:
+    app: kafka-producer
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer

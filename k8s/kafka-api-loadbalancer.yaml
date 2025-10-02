@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-api-lb
+  namespace: kafka-gateway
+  labels:
+    app: kafka-api
+spec:
+  selector:
+    app: kafka-api
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-producer-lb
+  namespace: kafka-microservices
+  labels:
+    app: kafka-producer
+spec:
+  selector:
+    app: kafka-producer
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-consumer-lb
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer
+spec:
+  selector:
+    app: kafka-consumer
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer

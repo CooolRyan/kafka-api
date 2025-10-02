@@ -69,3 +69,19 @@ spec:
     nodePort: 30082
     protocol: TCP
   type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-consumer-lb
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer
+spec:
+  selector:
+    app: kafka-consumer
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer
