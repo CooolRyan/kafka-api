@@ -30,6 +30,7 @@ spec:
       containers:
       - name: kafka-api
         image: docker.io/cooolryan/kafka-api:develop
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:

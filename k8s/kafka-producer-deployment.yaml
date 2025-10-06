@@ -28,6 +28,7 @@ spec:
       containers:
       - name: kafka-producer
         image: docker.io/cooolryan/kafka-producer:develop
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:
