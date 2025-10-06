@@ -29,7 +29,8 @@ spec:
         - "kafka3"
       containers:
       - name: kafka-api
-        image: docker.io/cooolryan/kafka-api:v1
+        image: docker.io/cooolryan/kafka-api:develop
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:
@@ -44,13 +45,13 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /
+            path: /actuator/health/liveness
             port: 8080
           initialDelaySeconds: 60
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /
+            path: /actuator/health/readiness
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -68,8 +69,9 @@ spec:
   ports:
   - port: 8080
     targetPort: 8080
+    nodePort: 30080
     protocol: TCP
-  type: ClusterIP
+  type: NodePort
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

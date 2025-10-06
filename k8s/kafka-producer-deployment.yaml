@@ -27,7 +27,8 @@ spec:
         - "kafka3"
       containers:
       - name: kafka-producer
-        image: docker.io/cooolryan/kafka-producer:v1
+        image: docker.io/cooolryan/kafka-producer:develop
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:
@@ -42,13 +43,13 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /
+            path: /actuator/health/liveness
             port: 8080
           initialDelaySeconds: 60
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /
+            path: /actuator/health/readiness
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -66,5 +67,22 @@ spec:
   ports:
   - port: 8080
     targetPort: 8080
+    nodePort: 30081
     protocol: TCP
-  type: ClusterIP
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-producer-lb
+  namespace: kafka-microservices
+  labels:
+    app: kafka-producer
+spec:
+  selector:
+    app: kafka-producer
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer
