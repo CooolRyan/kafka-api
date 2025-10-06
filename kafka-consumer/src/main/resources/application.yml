@@ -1,5 +1,5 @@
 server:
-  port: 8081 # Consumer 서버 포트 (Producer와 구분)
+  port: 8080 
 
 spring:
   kafka:
