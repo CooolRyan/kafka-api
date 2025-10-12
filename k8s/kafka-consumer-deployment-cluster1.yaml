@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-consumer-cluster1
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer-cluster1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-consumer-cluster1
+  template:
+    metadata:
+      labels:
+        app: kafka-consumer-cluster1
+    spec:
+      hostAliases:
+      - ip: "192.168.211.134"  # 기존 클러스터 IP
+        hostnames:
+        - "kafka1"
+      - ip: "192.168.211.135"
+        hostnames:
+        - "kafka2"
+      - ip: "192.168.211.136"
+        hostnames:
+        - "kafka3"
+      containers:
+      - name: kafka-consumer
+        image: docker.io/cooolryan/kafka-consumer:develop
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: kafka-config-cluster1
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # livenessProbe:
+        #   httpGet:
+        #     path: /actuator/health/liveness
+        #     port: 8080
+        #   initialDelaySeconds: 60
+        #   periodSeconds: 30
+        # readinessProbe:
+        #   httpGet:
+        #     path: /actuator/health/readiness
+        #     port: 8080
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-consumer-service-cluster1
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer-cluster1
+spec:
+  selector:
+    app: kafka-consumer-cluster1
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30081
+    protocol: TCP
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-consumer-lb-cluster1
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer-cluster1
+spec:
+  selector:
+    app: kafka-consumer-cluster1
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer
