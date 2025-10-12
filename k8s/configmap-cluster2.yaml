@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-config-cluster2
+  namespace: kafka-microservices
+data:
+  # 새로운 Kafka 클러스터 (3.9 버전)
+  KAFKA_BOOTSTRAP_SERVERS: "kafka1:9092,kafka2:9092,kafka3:9092"
+  KAFKA_GROUP_ID: "kafka-microservices-group-cluster2"
+
+  # Spring 설정
+  SPRING_PROFILES_ACTIVE: "k8s"
+  SERVER_PORT: "8080"
+
+  # 로깅 설정
+  LOGGING_LEVEL_ROOT: "INFO"
+  LOGGING_LEVEL_APACHE_KAFKAAPI: "DEBUG"
