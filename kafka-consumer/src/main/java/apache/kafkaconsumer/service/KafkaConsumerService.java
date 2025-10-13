@@ -13,7 +13,7 @@ public class KafkaConsumerService {
      * 'my-test-topic' 토픽의 메시지를 리스닝합니다.
      * @param record 소비된 메시지의 전체 정보 (헤더, 키, 값 등)
      */
-    @KafkaListener(topics = "my-test-topic", groupId = "${spring.kafka.consumer.group-id}")
+    @KafkaListener(topics = "jmeter", groupId = "${spring.kafka.consumer.group-id}")
     public void consume(ConsumerRecord<String, String> record) {
         log.info("메시지 수신! [Key: {}, Value: {}, Partition: {}, Offset: {}]",
                 record.key(), record.value(), record.partition(), record.offset());
