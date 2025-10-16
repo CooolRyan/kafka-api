@@ -17,10 +17,9 @@ spring:
       auto-commit-interval-ms: 1000
       # Key/Value의 역직렬화 방식 설정 (JSON 형태의 메시지를 받기 위해)
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: '*' # 모든 패키지의 클래스를 신뢰 (안전한 환경에서만 사용)
-        spring.json.value.default.type: java.lang.String
         # Offset 저장소를 Kafka로 명시적 설정
         offset.storage: kafka
         # Consumer Group 상태 저장소를 Kafka로 설정
