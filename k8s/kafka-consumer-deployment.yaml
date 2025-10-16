@@ -34,13 +34,15 @@ spec:
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "k8s"
+        - name: JAVA_OPTS
+          value: "-Xms1g -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=16m"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
+            memory: "1Gi"
             cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
         livenessProbe:
           httpGet:
             path: /actuator/health/liveness
