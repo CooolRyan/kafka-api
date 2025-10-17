@@ -49,13 +49,19 @@ public class KafkaProducerService {
         // 메시지 전송 시 카운터 증가 (JMeter 테스트 1번 당 1회 카운트)
         producerCounter.increment();
         
+        // 디버깅을 위한 로그 추가
+        double currentCount = producerCounter.count();
+        if (currentCount % 1000 == 0) { // 1000개마다 로그 출력
+            log.info("현재 카운터 값: {}", currentCount);
+        }
+        
         // KafkaTemplate을 사용하여 메시지 전송. 비동기로 동작함
         CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(topic, key, message);
 
         // 전송 성공/실패 시 로그를 남기기 위한 콜백
         future.whenComplete((result, ex) -> {
             if (ex == null) {
-                log.info("메시지 전송 성공! [Topic: {}, Partition: {}, Offset: {}]",
+                log.debug("메시지 전송 성공! [Topic: {}, Partition: {}, Offset: {}]",
                         result.getRecordMetadata().topic(),
                         result.getRecordMetadata().partition(),
                         result.getRecordMetadata().offset());
@@ -70,11 +76,17 @@ public class KafkaProducerService {
      * 기존 카운터를 제거하고 새로운 카운터를 생성합니다.
      */
     public void resetCounter() {
+        // 초기화 전 현재 카운터 값 로깅
+        double beforeCount = producerCounter.count();
+        log.info("카운터 초기화 전 값: {}", beforeCount);
+        
         // 기존 카운터를 레지스트리에서 제거
         meterRegistry.remove(producerCounter);
         // 새로운 카운터 생성
         this.producerCounter = createCounter();
-        log.info("프로듀서 메시지 카운터가 초기화되었습니다.");
+        
+        log.info("프로듀서 메시지 카운터가 초기화되었습니다. (이전 값: {}, 현재 값: {})", 
+                beforeCount, producerCounter.count());
     }
     
     /**
