@@ -34,4 +34,18 @@ public class ConsumerController {
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Consumer is running");
     }
+
+    /**
+     * DLQ 메시지 재처리 (수동)
+     */
+    @PostMapping("/dlq/retry")
+    public ResponseEntity<String> retryDLQMessages() {
+        try {
+            // DLQ 토픽에서 메시지를 다시 원본 토픽으로 전송하는 로직
+            // 실제 구현에서는 DLQ Consumer를 별도로 만들어야 함
+            return ResponseEntity.ok("DLQ 재처리 요청이 완료되었습니다. (구현 필요)");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("DLQ 재처리 중 오류 발생: " + e.getMessage());
+        }
+    }
 }
