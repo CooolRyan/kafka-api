@@ -1,3 +1,4 @@
+// kafka-consumer/src/main/java/apache/kafkaconsumer/service/KafkaConsumerService.java
 package apache.kafkaconsumer.service;
 
 import apache.kafkaconsumer.entity.MessageEntity;
@@ -5,6 +6,8 @@ import apache.kafkaconsumer.repository.MessageRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
