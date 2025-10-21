@@ -1,6 +1,15 @@
 server:
   port: 8080 # Producer API 서버 포트
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus,health,info
+  endpoint:
+    prometheus:
+      enabled: true
+
 spring:
   kafka:
     # Kafka 클러스터 서버 주소 설정

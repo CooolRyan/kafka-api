@@ -69,10 +69,14 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
+          # 고정 태그 (develop 브랜치용)
+          type=raw,value=develop,enable={{is_default_branch}}
+          # 버전 태그 (커밋 해시 기반)
+          type=sha,prefix=v-
+          # PR 태그
           type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
+          # 브랜치 태그 (develop 제외)
+          type=ref,event=branch
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
