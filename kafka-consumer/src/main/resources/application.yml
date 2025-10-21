@@ -85,10 +85,10 @@ spring:
 
   # 데이터소스 설정 (PostgreSQL)
   datasource:
-    url: jdbc:postgresql://postgres:5432/kafka_db
+    url: jdbc:postgresql://192.168.211.138:5432/kafka_db
     driver-class-name: org.postgresql.Driver
-    username: kafka_user
-    password: kafka_password
+    username: postgres
+    password: postgres
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
