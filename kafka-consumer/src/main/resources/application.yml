@@ -54,13 +54,17 @@ spring:
         retries: 3
         # 재시도 간격 (100ms)
         retry.backoff.ms: 100
+        # 리밸런싱 안정화 설정 (최적화용)
+        # partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+        # enable.auto.commit: false
 
     # 리스너 컨테이너 설정
     listener:
       # 수동 커밋 사용
       ack-mode: manual
       # 동시성 설정 (파티션 수의 2배)
-      concurrency: 6
+      concurrency: 2  # 스케일 다운 시 lag 해결을 위해 파티션 수에 맞춤
+      # concurrency: 6  # 원래 설정 (최적화용)
       # 배치 모드 비활성화 (개별 메시지 처리)
       type: single
       # 폴링 간격 (100ms)
