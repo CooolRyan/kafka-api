@@ -67,7 +67,7 @@ public class KafkaConsumerService {
     @KafkaListener(
         topics = "jmeter", 
         groupId = "${spring.kafka.consumer.group-id}",
-        concurrency = "6", // 파티션 수의 2배 (3개 파티션 × 2)
+        concurrency = "1", // 파티션 수의 2배 (3개 파티션 × 2)
         containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
