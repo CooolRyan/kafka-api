@@ -25,15 +25,15 @@ spring:
       # Key/Value의 역직렬화 방식 설정
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # TPS 3000 처리를 위한 최적화 설정
       properties:
+        # JSON 설정
         spring.json.trusted.packages: '*' # 모든 패키지의 클래스를 신뢰 (안전한 환경에서만 사용)
         spring.json.value.default.type: java.lang.String
         # Offset 저장소를 Kafka로 명시적 설정
         offset.storage: kafka
         # Consumer Group 상태 저장소를 Kafka로 설정
         group.storage: kafka
-      # TPS 3000 처리를 위한 최적화 설정
-      properties:
         # 배치 크기 (한 번에 가져올 메시지 수)
         max.poll.records: 1000
         # 세션 타임아웃 (30초)
