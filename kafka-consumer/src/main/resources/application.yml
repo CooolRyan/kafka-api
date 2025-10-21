@@ -69,7 +69,7 @@ spring:
       ack-mode: manual
       # 동시성 설정 (단순화)
       #concurrency: 1  # 단순하고 안정적인 설정
-      concurrency: 2  # 파티션 수에 맞춤 (중간 설정)
+      concurrency: 1  # 파티션 수에 맞춤 (중간 설정)
       # concurrency: 6  # 원래 설정 (최적화용)
       # 배치 모드 비활성화 (개별 메시지 처리)
       type: single
