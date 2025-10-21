@@ -36,10 +36,10 @@ spring:
         group.storage: kafka
         # 배치 크기 (한 번에 가져올 메시지 수)
         max.poll.records: 1000
-        # 세션 타임아웃 (30초)
-        session.timeout.ms: 30000
-        # 하트비트 간격 (10초)
-        heartbeat.interval.ms: 10000
+        # 세션 타임아웃 (30초) - 기존 설정과 통합
+        # session.timeout.ms: 30000
+        # 하트비트 간격 (10초) - 기존 설정과 통합
+        # heartbeat.interval.ms: 10000
         # 요청 타임아웃 (30초)
         request.timeout.ms: 30000
         # 메시지 최대 크기 (10MB)
@@ -54,16 +54,22 @@ spring:
         retries: 3
         # 재시도 간격 (100ms)
         retry.backoff.ms: 100
-        # 리밸런싱 안정화 설정 (최적화용)
-        # partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+        # Kafka 4.1 서버 기반 리밸런싱 설정 (opt-in만 활성화)
+        group.protocol: consumer  # 서버 기반 리밸런싱 옵트인
+        # partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor  # 클라이언트 assignor (서버 기반에서는 의미 감소)
         # enable.auto.commit: false
+        # 서버 기반 리밸런싱 최적화 설정 (버전 호환성을 위해 주석처리)
+        # rebalance.timeout.ms: 30000  # 리밸런싱 타임아웃 (30초)
+        # session.timeout.ms: 30000    # 세션 타임아웃 (30초)
+        # heartbeat.interval.ms: 10000 # 하트비트 간격 (10초)
 
     # 리스너 컨테이너 설정
     listener:
       # 수동 커밋 사용
       ack-mode: manual
-      # 동시성 설정 (파티션 수의 2배)
-      concurrency: 2  # 스케일 다운 시 lag 해결을 위해 파티션 수에 맞춤
+      # 동시성 설정 (단순화)
+      #concurrency: 1  # 단순하고 안정적인 설정
+      concurrency: 2  # 파티션 수에 맞춤 (중간 설정)
       # concurrency: 6  # 원래 설정 (최적화용)
       # 배치 모드 비활성화 (개별 메시지 처리)
       type: single
