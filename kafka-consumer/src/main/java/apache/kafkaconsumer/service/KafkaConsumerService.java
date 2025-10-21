@@ -5,7 +5,6 @@ import apache.kafkaconsumer.entity.MessageEntity;
 import apache.kafkaconsumer.repository.MessageRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class KafkaConsumerService {
 
     private final MessageRepository messageRepository;
