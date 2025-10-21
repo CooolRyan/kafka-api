@@ -76,7 +76,7 @@ jobs:
           # PR 태그
           type=ref,event=pr
           # 브랜치 태그 (develop 제외)
-          type=ref,event=branch,enable={{is_default_branch == false}}
+          type=ref,event=branch
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
