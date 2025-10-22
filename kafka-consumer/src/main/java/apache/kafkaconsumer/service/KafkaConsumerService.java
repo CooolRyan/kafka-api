@@ -61,6 +61,9 @@ public class KafkaConsumerService {
         
         // 배치 처리 스레드 시작
         startBatchProcessor();
+        
+        // GC 모니터링 시작 (임시 비활성화)
+        // startRealTimeGCMonitoring();
     }
 
     /**
@@ -115,8 +118,8 @@ public class KafkaConsumerService {
             
             while (true) {
                 try {
-                    // 큐에서 메시지 가져오기 (최대 1000개 또는 100ms 대기)
-                    MessageEntity message = messageQueue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    // 큐에서 메시지 가져오기 (최대 1000개 또는 500ms 대기)
+                    MessageEntity message = messageQueue.poll(500, java.util.concurrent.TimeUnit.MILLISECONDS);
                     
                     if (message != null) {
                         batch.add(message);
@@ -124,10 +127,10 @@ public class KafkaConsumerService {
                     
                     long currentTime = System.currentTimeMillis();
                     boolean shouldProcess = batch.size() >= 1000 || // 1000개 모이면
-                                         (!batch.isEmpty() && (currentTime - lastProcessTime) >= 100); // 100ms 경과하면
+                                         (!batch.isEmpty() && (currentTime - lastProcessTime) >= 1000); // 1초 경과하면
                     
                     if (shouldProcess && !batch.isEmpty()) {
-                        processBatch(batch);
+                        processBatch(batch);  // 배치 DB 삽입 활성화
                         batch.clear();
                         lastProcessTime = currentTime;
                     }
@@ -143,6 +146,7 @@ public class KafkaConsumerService {
         
         batchProcessor.setName("batch-processor");
         batchProcessor.setDaemon(true);
+        batchProcessor.setPriority(Thread.MAX_PRIORITY); // 최고 우선순위
         batchProcessor.start();
     }
     

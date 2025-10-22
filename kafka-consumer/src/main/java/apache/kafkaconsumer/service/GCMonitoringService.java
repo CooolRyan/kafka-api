@@ -89,7 +89,7 @@ public class GCMonitoringService {
         lastOldGCCount = oldGCBean.getCollectionCount();
         lastOldGCTime = oldGCBean.getCollectionTime();
         
-        // GC 이벤트 실시간 모니터링 시작 (1초마다 체크)
+        // GC 이벤트 실시간 모니터링 시작 (5초마다 체크 - 배치 처리 영향 최소화)
         startRealTimeGCMonitoring();
     }
     
@@ -103,9 +103,9 @@ public class GCMonitoringService {
             } catch (Exception e) {
                 log.error("GC 모니터링 중 오류 발생: {}", e.getMessage());
             }
-        }, 1, 1, TimeUnit.SECONDS);
+        }, 5, 5, TimeUnit.SECONDS);
         
-        log.info("실시간 GC 모니터링이 시작되었습니다. (1초 간격)");
+        log.info("실시간 GC 모니터링이 시작되었습니다. (5초 간격)");
     }
     
     /**
