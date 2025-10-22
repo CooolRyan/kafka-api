@@ -49,36 +49,36 @@ public class GCMonitoringService {
     @PostConstruct
     public void initGCMetrics() {
         // 메모리 사용량 메트릭
-        Gauge.builder("jvm.memory.used.heap")
-                .description("힙 메모리 사용량 (bytes)")
-                .register(meterRegistry, memoryBean, bean -> {
+        Gauge.builder("jvm.memory.used.heap", memoryBean, bean -> {
                     MemoryUsage heapUsage = bean.getHeapMemoryUsage();
                     return heapUsage.getUsed();
-                });
+                })
+                .description("힙 메모리 사용량 (bytes)")
+                .register(meterRegistry);
 
-        Gauge.builder("jvm.memory.max.heap")
-                .description("힙 메모리 최대 크기 (bytes)")
-                .register(meterRegistry, memoryBean, bean -> {
+        Gauge.builder("jvm.memory.max.heap", memoryBean, bean -> {
                     MemoryUsage heapUsage = bean.getHeapMemoryUsage();
                     return heapUsage.getMax();
-                });
+                })
+                .description("힙 메모리 최대 크기 (bytes)")
+                .register(meterRegistry);
 
         // GC 횟수 메트릭
-        Gauge.builder("jvm.gc.collections.young")
+        Gauge.builder("jvm.gc.collections.young", youngGCBean, GarbageCollectorMXBean::getCollectionCount)
                 .description("Young GC 횟수")
-                .register(meterRegistry, youngGCBean, GarbageCollectorMXBean::getCollectionCount);
+                .register(meterRegistry);
 
-        Gauge.builder("jvm.gc.collections.old")
+        Gauge.builder("jvm.gc.collections.old", oldGCBean, GarbageCollectorMXBean::getCollectionCount)
                 .description("Old GC 횟수")
-                .register(meterRegistry, oldGCBean, GarbageCollectorMXBean::getCollectionCount);
+                .register(meterRegistry);
 
-        Gauge.builder("jvm.gc.time.young")
+        Gauge.builder("jvm.gc.time.young", youngGCBean, GarbageCollectorMXBean::getCollectionTime)
                 .description("Young GC 시간 (ms)")
-                .register(meterRegistry, youngGCBean, GarbageCollectorMXBean::getCollectionTime);
+                .register(meterRegistry);
 
-        Gauge.builder("jvm.gc.time.old")
+        Gauge.builder("jvm.gc.time.old", oldGCBean, GarbageCollectorMXBean::getCollectionTime)
                 .description("Old GC 시간 (ms)")
-                .register(meterRegistry, oldGCBean, GarbageCollectorMXBean::getCollectionTime);
+                .register(meterRegistry);
 
         log.info("GC 모니터링 메트릭이 초기화되었습니다.");
         log.info("Young GC: {}, Old GC: {}", youngGCBean.getName(), oldGCBean.getName());
