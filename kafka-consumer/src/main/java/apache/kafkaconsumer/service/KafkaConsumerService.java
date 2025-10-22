@@ -29,6 +29,7 @@ public class KafkaConsumerService {
     private final MessageRepository messageRepository;
     private final MeterRegistry meterRegistry;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final GCMonitoringService gcMonitoringService;
     
     // 배치 처리를 위한 큐
     private final BlockingQueue<MessageEntity> messageQueue = new LinkedBlockingQueue<>();
@@ -43,10 +44,11 @@ public class KafkaConsumerService {
     private final Counter dbInsertCounter;
     private final Counter dlqCounter;
     
-    public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate) {
+    public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate, GCMonitoringService gcMonitoringService) {
         this.messageRepository = messageRepository;
         this.meterRegistry = meterRegistry;
         this.kafkaTemplate = kafkaTemplate;
+        this.gcMonitoringService = gcMonitoringService;
         this.consumerCounter = Counter.builder("consumer_msg_total")
                 .description("전체 컨슈머된 메시지 수")
                 .register(meterRegistry);
@@ -233,6 +235,13 @@ public class KafkaConsumerService {
     public String getStatus() {
         return String.format("처리된 메시지: %d, 큐 크기: %d, 배치 수: %d", 
                 processedCount.get(), messageQueue.size(), batchCount.get());
+    }
+
+    /**
+     * GC 상태 로그 출력 (Controller에서 호출)
+     */
+    public void logMemoryStatus() {
+        gcMonitoringService.logMemoryStatus();
     }
     
     /**

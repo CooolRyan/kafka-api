@@ -5,10 +5,21 @@ management:
   endpoints:
     web:
       exposure:
-        include: prometheus,health,info
+        include: prometheus,health,info,metrics
   endpoint:
     prometheus:
       enabled: true
+    metrics:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    jvm:
+      memory:
+        enabled: true
+      gc:
+        enabled: true
 
 spring:
   kafka:
@@ -62,6 +73,11 @@ spring:
         # rebalance.timeout.ms: 30000  # 리밸런싱 타임아웃 (30초)
         # session.timeout.ms: 30000    # 세션 타임아웃 (30초)
         # heartbeat.interval.ms: 10000 # 하트비트 간격 (10초)
+        # Kafka 4.0+ prefetch 설정 (GC 압박 완화)
+        fetch.min.bytes: 1
+        fetch.max.wait.ms: 500
+        # 메모리 압박 완화를 위한 설정
+        max.partition.fetch.bytes: 1048576  # 1MB로 줄임 (기존 10MB)
 
     # 리스너 컨테이너 설정
     listener:
@@ -114,5 +130,9 @@ logging:
     org.springframework.kafka: WARN
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    # GC 로그 설정
+    gc: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 
