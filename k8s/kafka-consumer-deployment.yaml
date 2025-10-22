@@ -43,7 +43,7 @@ spec:
         - name: SPRING_PROFILES_ACTIVE
           value: "k8s"
         - name: JAVA_OPTS
-          value: "-Xms1g -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=16m"
+          value: "-Xms1g -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=16m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCApplicationStoppedTime -Xloggc:/tmp/gc.log"
         resources:
           requests:
             memory: "1Gi"
