@@ -53,8 +53,6 @@ spring:
         # heartbeat.interval.ms: 10000
         # 요청 타임아웃 (30초)
         request.timeout.ms: 30000
-        # 메시지 최대 크기 (10MB)
-        max.partition.fetch.bytes: 10485760
         # 전체 메시지 최대 크기 (50MB)
         max.poll.interval.ms: 300000
         # 압축 해제 버퍼 크기 (64KB)
