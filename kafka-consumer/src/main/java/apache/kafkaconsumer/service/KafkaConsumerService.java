@@ -59,8 +59,8 @@ public class KafkaConsumerService {
                 .description("전체 DLQ로 전송된 메시지 수")
                 .register(meterRegistry);
         
-        // 배치 처리 스레드 시작
-        startBatchProcessor();
+        // 배치 처리 스레드 시작 (DB 처리 비활성화)
+        // startBatchProcessor();
         
         // GC 모니터링 시작 (임시 비활성화)
         // startRealTimeGCMonitoring();
@@ -89,11 +89,14 @@ public class KafkaConsumerService {
             message.setOffsetNumber(record.offset());
             message.setCreatedAt(LocalDateTime.now());
             
-            // 배치 처리를 위한 큐에 추가
-            messageQueue.offer(message);
+            // 배치 처리를 위한 큐에 추가 (DB 처리 비활성화)
+            // messageQueue.offer(message);
             
-            // 오프셋 커밋을 위한 큐에 추가 (배치 처리 완료 후 커밋)
-            acknowledgmentQueue.offer(acknowledgment);
+            // 오프셋 커밋을 위한 큐에 추가 (배치 처리 완료 후 커밋) (DB 처리 비활성화)
+            // acknowledgmentQueue.offer(acknowledgment);
+            
+            // 즉시 오프셋 커밋 (DB 처리 없이)
+            acknowledgment.acknowledge();
             
             // 처리된 메시지 수 증가
             long count = processedCount.incrementAndGet();
