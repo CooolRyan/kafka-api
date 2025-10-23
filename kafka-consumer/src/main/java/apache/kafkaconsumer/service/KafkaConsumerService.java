@@ -29,7 +29,7 @@ public class KafkaConsumerService {
     private final MessageRepository messageRepository;
     private final MeterRegistry meterRegistry;
     private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final GCMonitoringService gcMonitoringService;
+    // private final GCMonitoringService gcMonitoringService; // GC 모니터링 제거
     
     // 배치 처리를 위한 큐
     private final BlockingQueue<MessageEntity> messageQueue = new LinkedBlockingQueue<>();
@@ -44,11 +44,11 @@ public class KafkaConsumerService {
     private final Counter dbInsertCounter;
     private final Counter dlqCounter;
     
-    public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate, GCMonitoringService gcMonitoringService) {
+    public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate) {
         this.messageRepository = messageRepository;
         this.meterRegistry = meterRegistry;
         this.kafkaTemplate = kafkaTemplate;
-        this.gcMonitoringService = gcMonitoringService;
+        // this.gcMonitoringService = gcMonitoringService; // GC 모니터링 제거
         this.consumerCounter = Counter.builder("consumer_msg_total")
                 .description("전체 컨슈머된 메시지 수")
                 .register(meterRegistry);
@@ -59,8 +59,11 @@ public class KafkaConsumerService {
                 .description("전체 DLQ로 전송된 메시지 수")
                 .register(meterRegistry);
         
-        // 배치 처리 스레드 시작
-        startBatchProcessor();
+        // 배치 처리 스레드 시작 (DB 처리 비활성화)
+        // startBatchProcessor();
+        
+        // GC 모니터링 시작 (완전 제거)
+        // startRealTimeGCMonitoring();
     }
 
     /**
@@ -86,11 +89,14 @@ public class KafkaConsumerService {
             message.setOffsetNumber(record.offset());
             message.setCreatedAt(LocalDateTime.now());
             
-            // 배치 처리를 위한 큐에 추가
-            messageQueue.offer(message);
+            // 배치 처리를 위한 큐에 추가 (DB 처리 비활성화)
+            // messageQueue.offer(message);
             
-            // 오프셋 커밋을 위한 큐에 추가 (배치 처리 완료 후 커밋)
-            acknowledgmentQueue.offer(acknowledgment);
+            // 오프셋 커밋을 위한 큐에 추가 (배치 처리 완료 후 커밋) (DB 처리 비활성화)
+            // acknowledgmentQueue.offer(acknowledgment);
+            
+            // 즉시 오프셋 커밋 (DB 처리 없이)
+            acknowledgment.acknowledge();
             
             // 처리된 메시지 수 증가
             long count = processedCount.incrementAndGet();
@@ -115,8 +121,8 @@ public class KafkaConsumerService {
             
             while (true) {
                 try {
-                    // 큐에서 메시지 가져오기 (최대 1000개 또는 100ms 대기)
-                    MessageEntity message = messageQueue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    // 큐에서 메시지 가져오기 (최대 1000개 또는 500ms 대기)
+                    MessageEntity message = messageQueue.poll(500, java.util.concurrent.TimeUnit.MILLISECONDS);
                     
                     if (message != null) {
                         batch.add(message);
@@ -124,10 +130,10 @@ public class KafkaConsumerService {
                     
                     long currentTime = System.currentTimeMillis();
                     boolean shouldProcess = batch.size() >= 1000 || // 1000개 모이면
-                                         (!batch.isEmpty() && (currentTime - lastProcessTime) >= 100); // 100ms 경과하면
+                                         (!batch.isEmpty() && (currentTime - lastProcessTime) >= 1000); // 1초 경과하면
                     
                     if (shouldProcess && !batch.isEmpty()) {
-                        processBatch(batch);
+                        processBatch(batch);  // 배치 DB 삽입 활성화
                         batch.clear();
                         lastProcessTime = currentTime;
                     }
@@ -143,6 +149,7 @@ public class KafkaConsumerService {
         
         batchProcessor.setName("batch-processor");
         batchProcessor.setDaemon(true);
+        batchProcessor.setPriority(Thread.MAX_PRIORITY); // 최고 우선순위
         batchProcessor.start();
     }
     
@@ -238,11 +245,11 @@ public class KafkaConsumerService {
     }
 
     /**
-     * GC 상태 로그 출력 (Controller에서 호출)
+     * GC 상태 로그 출력 (Controller에서 호출) - GC 모니터링 제거
      */
-    public void logMemoryStatus() {
-        gcMonitoringService.logMemoryStatus();
-    }
+    // public void logMemoryStatus() {
+    //     gcMonitoringService.logMemoryStatus();
+    // }
     
     /**
      * DLQ 메시지 구조
