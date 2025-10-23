@@ -29,7 +29,7 @@ public class KafkaConsumerService {
     private final MessageRepository messageRepository;
     private final MeterRegistry meterRegistry;
     private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final GCMonitoringService gcMonitoringService;
+    // private final GCMonitoringService gcMonitoringService; // GC 모니터링 제거
     
     // 배치 처리를 위한 큐
     private final BlockingQueue<MessageEntity> messageQueue = new LinkedBlockingQueue<>();
@@ -44,11 +44,11 @@ public class KafkaConsumerService {
     private final Counter dbInsertCounter;
     private final Counter dlqCounter;
     
-    public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate, GCMonitoringService gcMonitoringService) {
+    public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate) {
         this.messageRepository = messageRepository;
         this.meterRegistry = meterRegistry;
         this.kafkaTemplate = kafkaTemplate;
-        this.gcMonitoringService = gcMonitoringService;
+        // this.gcMonitoringService = gcMonitoringService; // GC 모니터링 제거
         this.consumerCounter = Counter.builder("consumer_msg_total")
                 .description("전체 컨슈머된 메시지 수")
                 .register(meterRegistry);
@@ -62,7 +62,7 @@ public class KafkaConsumerService {
         // 배치 처리 스레드 시작 (DB 처리 비활성화)
         // startBatchProcessor();
         
-        // GC 모니터링 시작 (임시 비활성화)
+        // GC 모니터링 시작 (완전 제거)
         // startRealTimeGCMonitoring();
     }
 
@@ -245,11 +245,11 @@ public class KafkaConsumerService {
     }
 
     /**
-     * GC 상태 로그 출력 (Controller에서 호출)
+     * GC 상태 로그 출력 (Controller에서 호출) - GC 모니터링 제거
      */
-    public void logMemoryStatus() {
-        gcMonitoringService.logMemoryStatus();
-    }
+    // public void logMemoryStatus() {
+    //     gcMonitoringService.logMemoryStatus();
+    // }
     
     /**
      * DLQ 메시지 구조
