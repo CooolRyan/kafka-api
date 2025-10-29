@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-consumer-single
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer-single
+spec:
+  replicas: 1  # 단일 Pod
+  selector:
+    matchLabels:
+      app: kafka-consumer-single
+  template:
+    metadata:
+      labels:
+        app: kafka-consumer-single
+    spec:
+      hostAliases:
+      - ip: "192.168.211.134"
+        hostnames:
+        - "kafka1"
+      - ip: "192.168.211.135"
+        hostnames:
+        - "kafka2"
+      - ip: "192.168.211.136"
+        hostnames:
+        - "kafka3"
+      - ip: "192.168.211.138" # PostgreSQL IP
+        hostnames:
+        - "postgres"
+      containers:
+      - name: kafka-consumer-single
+        image: docker.io/cooolryan/kafka-consumer:develop
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "k8s"
+        - name: JAVA_OPTS
+          value: "-Xms512m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-host
+        - name: POSTGRES_PORT
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-port
+        - name: POSTGRES_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-database
+        - name: POSTGRES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-password
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-consumer-single-service
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer-single
+spec:
+  selector:
+    app: kafka-consumer-single
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30083
+    protocol: TCP
+  type: NodePort

@@ -80,7 +80,7 @@ spring:
     # 리스너 컨테이너 설정
     listener:
       # 수동 커밋 사용
-      ack-mode: batch
+      ack-mode: manual
       # 동시성 설정 (Kafka 3.9.1 기본)
       concurrency: 1  # 기본 설정
       # 배치 모드 비활성화 (개별 메시지 처리)
