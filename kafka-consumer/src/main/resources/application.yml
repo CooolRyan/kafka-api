@@ -64,7 +64,7 @@ spring:
         # 재시도 간격 (100ms)
         retry.backoff.ms: 100
         # Kafka 4.1 서버 기반 리밸런싱 설정 (버전 호환성을 위해 비활성화)
-        #group.protocol: consumer  # 서버 기반 리밸런싱 옵트인 (Kafka 4.1+ 필요)
+        group.protocol: consumer  # 서버 기반 리밸런싱 옵트인 (Kafka 4.1+ 필요)
         # partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor  # 클라이언트 assignor (서버 기반에서는 의미 감소)
         # enable.auto.commit: false
         # 서버 기반 리밸런싱 최적화 설정 (버전 호환성을 위해 주석처리)
@@ -80,7 +80,7 @@ spring:
     # 리스너 컨테이너 설정
     listener:
       # 수동 커밋 사용
-      ack-mode: manual
+      ack-mode: batch
       # 동시성 설정 (Kafka 3.9.1 기본)
       concurrency: 1  # 기본 설정
       # 배치 모드 비활성화 (개별 메시지 처리)
