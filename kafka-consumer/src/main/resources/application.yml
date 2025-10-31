@@ -83,8 +83,10 @@ spring:
       ack-mode: manual
       # 동시성 설정 (Kafka 3.9.1 기본)
       concurrency: 1  # 기본 설정
-      # 배치 모드 비활성화 (개별 메시지 처리)
-      type: single
+      # 배치 모드 활성화 (여러 메시지 배치 처리)
+      type: batch
+      # [예전 방식 - Single 형식]
+      # type: single  # 개별 메시지 처리 (1개씩)
       # 폴링 간격 (100ms)
       poll-timeout: 100
       # 에러 핸들러 설정
