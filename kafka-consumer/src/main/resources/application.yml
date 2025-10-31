@@ -71,11 +71,11 @@ spring:
         # rebalance.timeout.ms: 30000  # 리밸런싱 타임아웃 (30초)
         # session.timeout.ms: 30000    # 세션 타임아웃 (30초)
         # heartbeat.interval.ms: 10000 # 하트비트 간격 (10초)
-        # Kafka 4.0+ prefetch 설정 (GC 압박 완화)
-        # fetch.min.bytes: 1
-        # fetch.max.wait.ms: 500
+        # Kafka 배치 처리 최적화 설정
+        fetch.min.bytes: 1048576  # 1MB 이상 모일 때까지 대기
+        fetch.max.wait.ms: 500  # 최대 500ms 대기
         # 메모리 압박 완화를 위한 설정
-        # max.partition.fetch.bytes: 1048576  # 1MB로 줄임 (기존 10MB)
+        max.partition.fetch.bytes: 10485760  # 10MB
 
     # 리스너 컨테이너 설정
     listener:
@@ -87,8 +87,8 @@ spring:
       type: batch
       # [예전 방식 - Single 형식]
       # type: single  # 개별 메시지 처리 (1개씩)
-      # 폴링 간격 (100ms)
-      poll-timeout: 100
+      # 폴링 간격 (3000ms) - 배치 처리를 위해 충분히 대기
+      poll-timeout: 3000
       # 에러 핸들러 설정
       missing-topics-fatal: false
 
