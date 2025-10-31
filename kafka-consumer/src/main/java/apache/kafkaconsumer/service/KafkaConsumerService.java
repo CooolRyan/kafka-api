@@ -110,29 +110,26 @@ public class KafkaConsumerService {
                 return;
             }
             
-            // 메시지 엔티티 리스트 생성
-            List<MessageEntity> messages = new ArrayList<>();
-            
+            // 배치 consume만 처리 (DB 처리 없음)
             for (ConsumerRecord<String, String> record : records) {
                 // 메시지 카운터 증가
                 consumerCounter.increment();
                 
-                // 메시지 엔티티 생성
-                MessageEntity message = new MessageEntity();
-                message.setMessageKey(record.key());
-                message.setMessageValue(record.value());
-                message.setTopic(record.topic());
-                message.setPartitionNumber(record.partition());
-                message.setOffsetNumber(record.offset());
-                message.setCreatedAt(LocalDateTime.now());
-                
-                messages.add(message);
+                // DB 저장 없이 consume만 처리
+                // MessageEntity message = new MessageEntity();
+                // message.setMessageKey(record.key());
+                // message.setMessageValue(record.value());
+                // message.setTopic(record.topic());
+                // message.setPartitionNumber(record.partition());
+                // message.setOffsetNumber(record.offset());
+                // message.setCreatedAt(LocalDateTime.now());
+                // messages.add(message);
             }
             
-            // 배치 DB 삽입 처리
-            processBatch(messages);
+            // 배치 DB 삽입 처리 (비활성화)
+            // processBatch(messages);
             
-            // 배치 처리 후 오프셋 커밋
+            // 배치 consume 후 오프셋 커밋
             acknowledgment.acknowledge();
             
             // 처리된 메시지 수 증가
