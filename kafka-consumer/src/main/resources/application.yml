@@ -80,9 +80,9 @@ spring:
       # 동시성 설정 (TPS 600 처리용 - 파티션 수의 2배)
       concurrency: 6  # 3개 파티션 × 2
       # 배치 모드 활성화 (여러 메시지 배치 처리)
-      # type: batch
+      type: batch
       # [대안: Single + 작은 배치로 더 미세한 커밋]
-      type: single  # 개별 메시지 처리로 변경 시
+      # type: single  # 개별 메시지 처리로 변경 시
       max.poll.records: 200  # 1000 → 200으로 줄여서 더 미세하게 커밋
       # 폴링 간격 (500ms) - 빠른 처리와 배치 크기 균형
       poll-timeout: 500
