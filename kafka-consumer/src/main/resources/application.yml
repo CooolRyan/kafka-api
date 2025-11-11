@@ -76,11 +76,11 @@ spring:
     listener:
       # 수동 커밋 즉시 커밋 (Kafka 4.1 lag 문제 해결)
       ack-mode: manual_immediate  # acknowledge() 호출 즉시 커밋 요청
-      sync-commits: true  # 동기 커밋 필수 - commitSync()로 즉시 반영, 없으면 commitAsync() 사용되어 지연 발생
+      sync-commits: false  # 동기 커밋 필수 - commitSync()로 즉시 반영, 없으면 commitAsync() 사용되어 지연 발생
       # 동시성 설정 (TPS 600 처리용 - 파티션 수의 2배)
       concurrency: 6  # 3개 파티션 × 2
       # 배치 모드 활성화 (여러 메시지 배치 처리)
-      type: batch
+      type: single
       # [대안: Single + 작은 배치로 더 미세한 커밋]
       # type: single  # 개별 메시지 처리로 변경 시
       max.poll.records: 200  # 1000 → 200으로 줄여서 더 미세하게 커밋
