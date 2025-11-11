@@ -15,6 +15,8 @@ spec:
       labels:
         app: kafka-consumer
     spec:
+      # Affinity 제거 (pod가 4개 이상 뜨도록)
+      affinity: {}
       hostAliases:
       - ip: "192.168.211.134"
         hostnames:
