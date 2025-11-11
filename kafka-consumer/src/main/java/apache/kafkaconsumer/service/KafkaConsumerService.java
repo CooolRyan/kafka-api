@@ -5,9 +5,6 @@ import apache.kafkaconsumer.entity.MessageEntity;
 import apache.kafkaconsumer.repository.MessageRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -25,7 +22,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class KafkaConsumerService {
 
     private final MessageRepository messageRepository;
@@ -45,6 +41,7 @@ public class KafkaConsumerService {
     private final Counter dbInsertCounter;
     private final Counter dlqCounter;
     
+    // @RequiredArgsConstructor 제거하고 수동 생성자 사용 (Counter 초기화 필요)
     public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate) {
         this.messageRepository = messageRepository;
         this.meterRegistry = meterRegistry;
