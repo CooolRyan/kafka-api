@@ -61,14 +61,15 @@ public class KafkaConsumerService {
     }
 
     /**
-     * [BATCH 모드] - 주석 처리됨
-     * 배치 처리 방식 (List<ConsumerRecord>)
+     * [BATCH 모드] - 배치 처리 방식 (manual + batch 조합)
+     * - ack-mode: manual_immediate
+     * - sync-commits: false (auto sync off)
+     * - type: batch (List<ConsumerRecord>)
      */
-    /*
     @KafkaListener(
         topics = "jmeter", 
         groupId = "${spring.kafka.consumer.group-id}",
-        concurrency = "6",
+        concurrency = "2",
         containerFactory = "kafkaListenerContainerFactory"
     )
     public void consumeBatch(List<ConsumerRecord<String, String>> records, Acknowledgment acknowledgment) {
@@ -82,7 +83,7 @@ public class KafkaConsumerService {
                 consumerCounter.increment();
             }
             
-            // 배치 consume 후 오프셋 커밋
+            // 배치 consume 후 오프셋 커밋 (manual_immediate, sync-commits: false)
             acknowledgment.acknowledge();
             
             long count = processedCount.addAndGet(records.size());
@@ -95,18 +96,16 @@ public class KafkaConsumerService {
             log.error("배치 메시지 처리 중 오류 발생: {}", e.getMessage(), e);
         }
     }
-    */
 
     /**
-     * [SINGLE 모드] - 개별 메시지 처리
-     * - auto sync off: sync-commits: false
-     * - manual_immediate: ack-mode: manual_immediate
-     * - type: single (개별 메시지 처리)
+     * [SINGLE 모드] - 주석 처리됨
+     * 개별 메시지 처리
      */
+    /*
     @KafkaListener(
         topics = "jmeter", 
         groupId = "${spring.kafka.consumer.group-id}",
-        concurrency = "6", // 파티션 수의 2배 (3개 파티션 × 2)
+        concurrency = "2",
         containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
@@ -138,6 +137,7 @@ public class KafkaConsumerService {
             log.error("메시지 처리 중 오류 발생: {}", e.getMessage(), e);
         }
     }
+    */
     
     /**
      * 배치 처리 스레드 (TPS 3000 처리용)
