@@ -54,21 +54,25 @@ public class KafkaConsumerConfig {
         
         factory.setConsumerFactory(consumerFactory());
         
+        // 배치 모드 설정 (application.yml의 type: batch와 일치)
+        // 배치 모드에서는 List<ConsumerRecord>를 받음
+        factory.setBatchListener(true);
+        
+        // Container Properties 설정
+        ContainerProperties containerProps = factory.getContainerProperties();
+        // ack-mode는 application.yml에서 설정하지만, 여기서도 명시적으로 설정 가능
+        // containerProps.setAckMode(ContainerProperties.AckMode.MANUAL);
+        
+        log.info("📦 Kafka Listener Container Factory 생성 (Batch Mode: true)");
+        
         // Kafka 4.1 Graceful Shutdown을 위한 Container 커스터마이징
         factory.setContainerCustomizer(container -> {
             if (container instanceof ConcurrentMessageListenerContainer) {
                 ConcurrentMessageListenerContainer concurrentContainer = 
                     (ConcurrentMessageListenerContainer) container;
                 
-                // Container Properties 설정
-                ContainerProperties containerProps = concurrentContainer.getContainerProperties();
-                
                 log.info("🔧 Kafka Listener Container 커스터마이징: {}", 
                     concurrentContainer.getListenerId());
-                
-                // 참고: 실제 CloseOptions 적용은 KafkaMessageListenerContainer의
-                // stop() 메서드가 호출될 때 내부 consumer에 적용됩니다.
-                // Spring Kafka가 Kafka 4.1을 지원한다면 자동으로 적용될 수 있습니다.
             }
         });
         
