@@ -36,11 +36,6 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
-        # Graceful Shutdown 설정 (최적화용)
-        # lifecycle:
-        #   preStop:
-        #     exec:
-        #       command: ["/bin/sh", "-c", "sleep 15"]
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "k8s"
@@ -65,8 +60,11 @@ spec:
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
-      # Graceful Shutdown을 위한 설정 (최적화용)
-      # terminationGracePeriodSeconds: 60
+      # Graceful Shutdown을 위한 설정 (Kafka 4.1 CloseOptions 사용)
+      # SIGTERM 수신 시 KafkaGracefulShutdownConfig가 consumer.close(CloseOptions) 호출
+      # REMAIN_IN_GROUP 옵션으로 consumer group에 머물러 있어 리밸런싱 방지
+      # timeout: 60초 (Kafka 4.1 CloseOptions에서 처리)
+      terminationGracePeriodSeconds: 90  # 90초 - Kafka CloseOptions timeout(60s) + 여유시간
 ---
 apiVersion: v1
 kind: Service

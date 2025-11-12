@@ -45,3 +45,4 @@ Consumer는 `my-test-topic` 토픽의 메시지를 수신하여 로그로 출력
 
 
 
+

@@ -87,6 +87,8 @@ spring:
       poll-timeout: 500
       # 에러 핸들러 설정
       missing-topics-fatal: false
+      # 참고: Kafka 4.1 CloseOptions는 KafkaGracefulShutdownConfig에서 처리
+      # SIGTERM 수신 시 자동으로 consumer.close(CloseOptions.REMAIN_IN_GROUP) 호출
 
   # JPA 설정
   jpa:
