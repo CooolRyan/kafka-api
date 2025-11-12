@@ -153,6 +153,10 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
     
     /**
      * Kafka 4.1 CloseOptions를 사용하여 consumer 종료
+     * 
+     * 예제:
+     * consumer.close(CloseOptions.timeout(Duration.ofSeconds(60))
+     *     .withGroupMembershipOperation(GroupMembershipOperation.REMAIN_IN_GROUP));
      */
     private void closeConsumerWithOptions(Consumer<?, ?> consumer, Duration timeout) {
         try {
@@ -164,24 +168,22 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             // GroupMembershipOperation.REMAIN_IN_GROUP 값 가져오기
             Object remainInGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "REMAIN_IN_GROUP");
             
-            // CloseOptions 인스턴스 생성
-            Object closeOptions = closeOptionsClass.getDeclaredConstructor().newInstance();
+            // CloseOptions.timeout(Duration) static factory method 사용
+            Method timeoutMethod = closeOptionsClass.getMethod("timeout", Duration.class);
+            Object closeOptions = timeoutMethod.invoke(null, timeout);
             
-            // withGroupMembershipOperation() 메서드 호출
+            // .withGroupMembershipOperation(GroupMembershipOperation.REMAIN_IN_GROUP) fluent API 사용
             Method withGroupMembershipOperation = closeOptionsClass.getMethod(
                 "withGroupMembershipOperation", groupMembershipOperationEnum);
             closeOptions = withGroupMembershipOperation.invoke(closeOptions, remainInGroup);
-            
-            // withTimeout() 메서드 호출
-            Method withTimeout = closeOptionsClass.getMethod("withTimeout", Duration.class);
-            closeOptions = withTimeout.invoke(closeOptions, timeout);
             
             // consumer.close(CloseOptions) 호출
             Method closeMethod = consumer.getClass().getMethod("close", closeOptionsClass);
             closeMethod.invoke(consumer, closeOptions);
             
-            log.info("✅ Consumer.close(CloseOptions) 호출 완료 - REMAIN_IN_GROUP, timeout: {}초", 
-                timeout.getSeconds());
+            log.info("✅ Consumer.close(CloseOptions) 호출 완료");
+            log.info("   - GroupMembershipOperation: REMAIN_IN_GROUP");
+            log.info("   - Timeout: {}초", timeout.getSeconds());
             
         } catch (ClassNotFoundException e) {
             log.warn("⚠️ Kafka 4.1 CloseOptions를 찾을 수 없습니다. Kafka 4.1+ 버전이 필요합니다.");
