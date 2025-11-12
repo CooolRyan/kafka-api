@@ -47,9 +47,10 @@ spring:
         group.storage: kafka
         # 배치 크기 (한 번에 가져올 메시지 수)
         max.poll.records: 1000
-        # Kafka 4.1 스레드 통합 문제 해결을 위한 명시적 설정
-        session.timeout.ms: 30000  # 세션 타임아웃 (30초) - 명시적 설정
-        heartbeat.interval.ms: 3000  # 하트비트 간격 (3초) - Kafka 4.1 권장 값
+        # Kafka 4.1 서버 기반 리밸런싱 (group.protocol=consumer) 사용 시
+        # heartbeat.interval.ms와 session.timeout.ms는 설정할 수 없음 (서버가 관리)
+        # session.timeout.ms: 30000  # group.protocol=consumer 사용 시 설정 불가
+        # heartbeat.interval.ms: 3000  # group.protocol=consumer 사용 시 설정 불가
         rebalance.timeout.ms: 60000  # 리밸런싱 타임아웃 (60초) - 충분한 시간 확보
         # 요청 타임아웃 (30초)
         request.timeout.ms: 30000
