@@ -6,8 +6,8 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
-import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.listener.KafkaMessageListenerContainer;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
@@ -21,9 +21,12 @@ import java.util.Collection;
  * KIP-1092: Extend Consumer#close with an option to leave the group or not
  * https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=321719077
  * 
- * 롤링 업데이트 시 consumer group에서 즉시 leave되지 않도록 설정
+ * Kafka 4.1 CloseOptions를 사용하여 consumer group에 머물러 있도록 설정
  * - REMAIN_IN_GROUP: consumer group에 머물러 있어 리밸런싱 방지
  * - timeout: 60초 (롤링 업데이트 완료까지 대기)
+ * 
+ * Static Group Membership (group.instance.id)과 함께 사용하면
+ * 롤링 업데이트 시 파티션 할당이 유지됨
  */
 @Component
 @Slf4j
@@ -37,7 +40,7 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
 
     @Override
     public void onApplicationEvent(ContextClosedEvent event) {
-        log.info("🛑 Spring Context가 종료됩니다. Kafka Consumer를 graceful하게 종료합니다...");
+        log.info("🛑 Spring Context가 종료됩니다. Kafka 4.1 CloseOptions를 사용하여 graceful shutdown 시작...");
         
         // 모든 Kafka Listener Container 중지
         Collection<MessageListenerContainer> containers = kafkaListenerEndpointRegistry.getAllListenerContainers();
@@ -48,13 +51,11 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 
                 try {
                     // Kafka 4.1 CloseOptions 사용
-                    // REMAIN_IN_GROUP: consumer group에 머물러 있어 리밸런싱 방지
-                    // timeout: 60초 (롤링 업데이트 완료까지 대기)
                     if (container instanceof ConcurrentMessageListenerContainer) {
                         ConcurrentMessageListenerContainer concurrentContainer = 
                             (ConcurrentMessageListenerContainer) container;
                         
-                        // 내부 consumer에 CloseOptions 적용
+                        // CloseOptions를 사용하여 종료
                         stopContainerWithCloseOptions(concurrentContainer, Duration.ofSeconds(60));
                     } else {
                         // 일반적인 경우 기본 stop 사용
@@ -65,6 +66,12 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 } catch (Exception e) {
                     log.error("❌ Listener Container '{}' 종료 중 오류 발생: {}", 
                         container.getListenerId(), e.getMessage(), e);
+                    // Fallback: 기본 stop 사용
+                    try {
+                        container.stop();
+                    } catch (Exception ex) {
+                        log.error("❌ Fallback stop()도 실패: {}", ex.getMessage());
+                    }
                 }
             }
         }
@@ -75,12 +82,7 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
     /**
      * Kafka 4.1 CloseOptions를 사용하여 Container 종료
      * 
-     * KIP-1092: Consumer#close(CloseOptions) 사용
-     * - REMAIN_IN_GROUP: consumer group에 머물러 있어 리밸런싱 방지
-     * - timeout: 60초 (롤링 업데이트 완료까지 대기)
-     * 
-     * 참고: Spring Kafka의 내부 구조상 리플렉션을 사용하여
-     * 내부 consumer에 접근하고 CloseOptions를 적용합니다.
+     * 주의: Container가 이미 stop 중이면 접근하지 않음
      */
     private void stopContainerWithCloseOptions(
             ConcurrentMessageListenerContainer container, 
@@ -91,8 +93,13 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             log.info("   - GroupMembershipOperation: REMAIN_IN_GROUP");
             log.info("   - Timeout: {}초", timeout.getSeconds());
             
+            // Container가 이미 stop 중이 아닌지 확인
+            if (!container.isRunning()) {
+                log.warn("⚠️ Container가 이미 종료 중입니다. skip");
+                return;
+            }
+            
             // ConcurrentMessageListenerContainer는 여러 KafkaMessageListenerContainer를 포함
-            // 각각의 container에 대해 CloseOptions 적용
             Field containersField = ConcurrentMessageListenerContainer.class.getDeclaredField("containers");
             containersField.setAccessible(true);
             @SuppressWarnings("unchecked")
@@ -101,8 +108,14 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             
             for (KafkaMessageListenerContainer<?, ?> kafkaContainer : containers) {
                 try {
-                    // 내부 consumer에 접근
-                    Consumer<?, ?> consumer = getConsumerFromContainer(kafkaContainer);
+                    // Container가 실행 중일 때만 consumer에 접근
+                    if (!kafkaContainer.isRunning()) {
+                        log.debug("Container {}가 이미 종료됨, skip", kafkaContainer.getListenerId());
+                        continue;
+                    }
+                    
+                    // 내부 consumer에 접근 (안전하게)
+                    Consumer<?, ?> consumer = getConsumerFromContainerSafely(kafkaContainer);
                     
                     if (consumer != null) {
                         // Kafka 4.1 CloseOptions 사용
@@ -114,27 +127,39 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                     }
                 } catch (Exception e) {
                     log.error("❌ Consumer 종료 중 오류: {}", e.getMessage(), e);
-                    kafkaContainer.stop();
+                    // Fallback: 기본 stop 사용
+                    try {
+                        kafkaContainer.stop();
+                    } catch (Exception ex) {
+                        log.error("❌ Fallback stop()도 실패: {}", ex.getMessage());
+                    }
                 }
             }
             
         } catch (Exception e) {
             log.error("❌ Container 종료 중 오류 발생: {}", e.getMessage(), e);
             // Fallback: 기본 stop() 사용
-            container.stop();
+            try {
+                container.stop();
+            } catch (Exception ex) {
+                log.error("❌ Fallback stop()도 실패: {}", ex.getMessage());
+            }
         }
     }
     
     /**
-     * KafkaMessageListenerContainer에서 내부 consumer 추출 (리플렉션 사용)
+     * KafkaMessageListenerContainer에서 내부 consumer 추출 (안전하게)
+     * Container가 실행 중일 때만 접근
      */
     @SuppressWarnings("unchecked")
-    private Consumer<?, ?> getConsumerFromContainer(KafkaMessageListenerContainer<?, ?> container) {
+    private Consumer<?, ?> getConsumerFromContainerSafely(KafkaMessageListenerContainer<?, ?> container) {
         try {
-            // Spring Kafka의 내부 구조에 따라 consumer 필드 접근
-            // KafkaMessageListenerContainer는 내부적으로 ListenerConsumer를 가지고 있고,
-            // ListenerConsumer는 consumer를 가지고 있습니다.
+            // Container가 실행 중인지 확인
+            if (!container.isRunning()) {
+                return null;
+            }
             
+            // Spring Kafka의 내부 구조에 따라 consumer 필드 접근
             Field listenerConsumerField = KafkaMessageListenerContainer.class.getDeclaredField("listenerConsumer");
             listenerConsumerField.setAccessible(true);
             Object listenerConsumer = listenerConsumerField.get(container);
@@ -195,5 +220,6 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             consumer.close(timeout);
         }
     }
+
 }
 
