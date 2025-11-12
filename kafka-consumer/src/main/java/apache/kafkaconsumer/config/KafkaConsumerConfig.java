@@ -60,10 +60,15 @@ public class KafkaConsumerConfig {
         
         // Container Properties 설정
         ContainerProperties containerProps = factory.getContainerProperties();
-        // ack-mode는 application.yml에서 설정하지만, 여기서도 명시적으로 설정 가능
-        // containerProps.setAckMode(ContainerProperties.AckMode.MANUAL);
+        // Acknowledgment 파라미터 사용을 위해 MANUAL AckMode 명시적 설정
+        containerProps.setAckMode(ContainerProperties.AckMode.MANUAL);
+        // 비동기 커밋 설정
+        containerProps.setSyncCommits(false);
         
-        log.info("📦 Kafka Listener Container Factory 생성 (Batch Mode: true)");
+        log.info("📦 Kafka Listener Container Factory 생성");
+        log.info("   - Batch Mode: true");
+        log.info("   - Ack Mode: MANUAL");
+        log.info("   - Sync Commits: false");
         
         // Kafka 4.1 Graceful Shutdown을 위한 Container 커스터마이징
         factory.setContainerCustomizer(container -> {
