@@ -92,8 +92,8 @@ spring:
 
     # 리스너 컨테이너 설정
     listener:
-      # 수동 커밋 즉시 커밋 (Kafka 4.1 lag 문제 해결)
-      ack-mode: manual_immediate  # acknowledge() 호출 즉시 커밋 요청
+      # 수동 커밋 (Acknowledgment 파라미터 사용을 위해 MANUAL 필요)
+      ack-mode: manual  # acknowledge() 호출 시 커밋 (Acknowledgment 파라미터 사용 가능)
       sync-commits: false  # 비동기 커밋 (auto sync off)
       # 동시성 설정
       concurrency: 2

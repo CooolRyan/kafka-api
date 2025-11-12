@@ -62,7 +62,7 @@ public class KafkaConsumerService {
 
     /**
      * [BATCH 모드] - 배치 처리 방식 (manual + batch 조합)
-     * - ack-mode: manual_immediate
+     * - ack-mode: manual (Acknowledgment 파라미터 사용)
      * - sync-commits: false (auto sync off)
      * - type: batch (List<ConsumerRecord>)
      */
@@ -83,7 +83,7 @@ public class KafkaConsumerService {
                 consumerCounter.increment();
             }
             
-            // 배치 consume 후 오프셋 커밋 (manual_immediate, sync-commits: false)
+            // 배치 consume 후 오프셋 커밋 (manual, sync-commits: false)
             acknowledgment.acknowledge();
             
             long count = processedCount.addAndGet(records.size());
