@@ -229,9 +229,36 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 throw new ClassNotFoundException("GroupMembershipOperation Enum을 찾을 수 없습니다");
             }
             
-            // DONT_LEAVE_GROUP 사용
-            Object dontLeaveGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "DONT_LEAVE_GROUP");
-            log.info("✅ DONT_LEAVE_GROUP Enum 값: {}", dontLeaveGroup);
+            // Enum 값들 확인
+            Object[] enumValues = groupMembershipOperationEnum.getEnumConstants();
+            log.info("🔍 GroupMembershipOperation Enum 값들:");
+            for (Object enumValue : enumValues) {
+                log.info("   - {}", enumValue);
+            }
+            
+            // DONT_LEAVE_GROUP 또는 REMAIN_IN_GROUP 찾기
+            Object groupMembershipOp = null;
+            String[] possibleNames = {"DONT_LEAVE_GROUP", "REMAIN_IN_GROUP", "LEAVE_GROUP"};
+            
+            for (String name : possibleNames) {
+                try {
+                    groupMembershipOp = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, name);
+                    log.info("✅ {} Enum 값 찾음: {}", name, groupMembershipOp);
+                    break;
+                } catch (IllegalArgumentException e) {
+                    log.debug("Enum 값 '{}'을 찾을 수 없음", name);
+                }
+            }
+            
+            if (groupMembershipOp == null) {
+                // 첫 번째 Enum 값 사용 (fallback)
+                if (enumValues.length > 0) {
+                    groupMembershipOp = enumValues[0];
+                    log.warn("⚠️ 기본 Enum 값 사용: {}", groupMembershipOp);
+                } else {
+                    throw new IllegalArgumentException("GroupMembershipOperation Enum 값을 찾을 수 없습니다");
+                }
+            }
             
             // 3. CloseOptions 생성자 찾기 (new CloseOptions())
             log.info("🔍 CloseOptions 생성자 찾는 중...");
@@ -251,8 +278,8 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             log.info("🔍 CloseOptions.groupMembership() 메서드 찾는 중...");
             Method groupMembershipMethod = closeOptionsClass.getMethod("groupMembership", groupMembershipOperationEnum);
             log.info("✅ groupMembership() 메서드 찾음: {}", groupMembershipMethod);
-            closeOptions = groupMembershipMethod.invoke(closeOptions, dontLeaveGroup);
-            log.info("✅ CloseOptions에 DONT_LEAVE_GROUP 설정 완료");
+            closeOptions = groupMembershipMethod.invoke(closeOptions, groupMembershipOp);
+            log.info("✅ CloseOptions에 GroupMembershipOperation 설정 완료: {}", groupMembershipOp);
             
             // 6. Consumer.close(CloseOptions) 메서드 찾기 (실제 Kafka Consumer 사용)
             log.info("🔍 Consumer.close(CloseOptions) 메서드 찾는 중...");
@@ -262,7 +289,7 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             // 7. close() 호출
             log.info("🚀 Consumer.close(CloseOptions) 호출 시작...");
             log.info("   - Timeout: {}초", timeout.getSeconds());
-            log.info("   - GroupMembershipOperation: DONT_LEAVE_GROUP");
+            log.info("   - GroupMembershipOperation: {}", groupMembershipOp);
             closeMethod.invoke(actualConsumer, closeOptions);
             
             log.info("✅ Consumer.close(CloseOptions) 호출 완료");
