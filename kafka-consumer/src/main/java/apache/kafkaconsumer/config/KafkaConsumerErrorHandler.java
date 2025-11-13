@@ -19,6 +19,7 @@ public class KafkaConsumerErrorHandler implements CommonErrorHandler {
 
     @Override
     public void handleOtherException(Exception thrownException, 
+                                     boolean committed,
                                      MessageListenerContainer container) {
         
         Throwable cause = thrownException.getCause();
