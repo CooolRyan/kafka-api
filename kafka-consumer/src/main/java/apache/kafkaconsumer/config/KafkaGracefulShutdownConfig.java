@@ -143,18 +143,34 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
     
     private void closeConsumerWithOptions(Consumer<?, ?> consumer, Duration timeout) {
         try {
-            // 1. CloseOptions 클래스 찾기
+            // 실제 Kafka Consumer 가져오기 (Spring Kafka 래퍼가 아닌)
+            Consumer<?, ?> actualConsumer = getActualKafkaConsumer(consumer);
+            if (actualConsumer == null) {
+                log.warn("⚠️ 실제 Kafka Consumer를 찾을 수 없습니다. consumer.close() 사용");
+                consumer.close(timeout);
+                return;
+            }
+            
+            // 1. CloseOptions 클래스 찾기 (독립 클래스, Consumer$가 아님!)
             log.info("🔍 CloseOptions 클래스 찾는 중...");
-            Class<?> closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.Consumer$CloseOptions");
+            Class<?> closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.CloseOptions");
             log.info("✅ CloseOptions 클래스 찾음: {}", closeOptionsClass.getName());
             
             // 2. GroupMembershipOperation Enum 찾기
             log.info("🔍 GroupMembershipOperation Enum 찾는 중...");
-            Class<?> groupMembershipOperationEnum = Class.forName(
-                "org.apache.kafka.clients.consumer.Consumer$CloseOptions$GroupMembershipOperation");
+            Class<?> groupMembershipOperationEnum = null;
+            try {
+                // 먼저 CloseOptions 내부 클래스로 시도
+                groupMembershipOperationEnum = Class.forName(
+                    "org.apache.kafka.clients.consumer.CloseOptions$GroupMembershipOperation");
+            } catch (ClassNotFoundException e) {
+                // 독립 Enum일 수도 있음
+                groupMembershipOperationEnum = Class.forName(
+                    "org.apache.kafka.clients.consumer.GroupMembershipOperation");
+            }
             log.info("✅ GroupMembershipOperation Enum 찾음: {}", groupMembershipOperationEnum.getName());
             
-            // DONT_LEAVE_GROUP 사용 (REMAIN_IN_GROUP이 아님!)
+            // DONT_LEAVE_GROUP 사용
             Object dontLeaveGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "DONT_LEAVE_GROUP");
             log.info("✅ DONT_LEAVE_GROUP Enum 값: {}", dontLeaveGroup);
             
@@ -179,23 +195,22 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             closeOptions = groupMembershipMethod.invoke(closeOptions, dontLeaveGroup);
             log.info("✅ CloseOptions에 DONT_LEAVE_GROUP 설정 완료");
             
-            // 6. Consumer.close(CloseOptions) 메서드 찾기
+            // 6. Consumer.close(CloseOptions) 메서드 찾기 (실제 Kafka Consumer 사용)
             log.info("🔍 Consumer.close(CloseOptions) 메서드 찾는 중...");
-            Method closeMethod = consumer.getClass().getMethod("close", closeOptionsClass);
+            Method closeMethod = actualConsumer.getClass().getMethod("close", closeOptionsClass);
             log.info("✅ close(CloseOptions) 메서드 찾음: {}", closeMethod);
             
             // 7. close() 호출
             log.info("🚀 Consumer.close(CloseOptions) 호출 시작...");
             log.info("   - Timeout: {}초", timeout.getSeconds());
             log.info("   - GroupMembershipOperation: DONT_LEAVE_GROUP");
-            closeMethod.invoke(consumer, closeOptions);
+            closeMethod.invoke(actualConsumer, closeOptions);
             
             log.info("✅ Consumer.close(CloseOptions) 호출 완료");
             
         } catch (ClassNotFoundException e) {
             log.error("❌❌❌ CloseOptions 클래스를 찾을 수 없습니다! ❌❌❌");
-            log.error("   - Kafka 버전 확인 필요: kafka-clients:4.1.0이 실제로 포함되었는지 확인");
-            log.error("   - 의존성 트리 확인: gradle dependencies | grep kafka-clients");
+            log.error("   - 찾은 경로: org.apache.kafka.clients.consumer.CloseOptions");
             log.error("   - 예외: {}", e.getMessage(), e);
             try {
                 log.warn("⚠️ 기본 consumer.close() 사용");
@@ -226,6 +241,30 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 log.error("❌ consumer.close()도 실패: {}", ex.getMessage());
             }
         }
+    }
+    
+    /**
+     * Spring Kafka 래퍼에서 실제 Kafka Consumer 추출
+     */
+    private Consumer<?, ?> getActualKafkaConsumer(Consumer<?, ?> consumer) {
+        try {
+            // Spring Kafka의 ExtendedKafkaConsumer인 경우 실제 consumer 필드 추출
+            if (consumer.getClass().getName().contains("ExtendedKafkaConsumer")) {
+                Field delegateField = consumer.getClass().getDeclaredField("delegate");
+                delegateField.setAccessible(true);
+                Object delegate = delegateField.get(consumer);
+                if (delegate instanceof Consumer) {
+                    return (Consumer<?, ?>) delegate;
+                }
+            }
+            // 이미 실제 Consumer인 경우
+            if (consumer.getClass().getName().equals("org.apache.kafka.clients.consumer.KafkaConsumer")) {
+                return consumer;
+            }
+        } catch (Exception e) {
+            log.debug("실제 Kafka Consumer 추출 실패: {}", e.getMessage());
+        }
+        return consumer; // fallback
     }
 }
 
