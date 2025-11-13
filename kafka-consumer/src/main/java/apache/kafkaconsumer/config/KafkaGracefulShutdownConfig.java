@@ -260,26 +260,79 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 }
             }
             
-            // 3. CloseOptions 생성자 찾기 (new CloseOptions())
-            log.info("🔍 CloseOptions 생성자 찾는 중...");
-            java.lang.reflect.Constructor<?> closeOptionsConstructor = closeOptionsClass.getDeclaredConstructor();
-            closeOptionsConstructor.setAccessible(true);
-            Object closeOptions = closeOptionsConstructor.newInstance();
-            log.info("✅ CloseOptions 인스턴스 생성 완료");
+            // 3. CloseOptions의 모든 메서드 확인
+            log.info("🔍 CloseOptions의 모든 메서드 확인 중...");
+            Method[] allMethods = closeOptionsClass.getMethods();
+            for (Method m : allMethods) {
+                log.info("   - {} (static: {})", m, java.lang.reflect.Modifier.isStatic(m.getModifiers()));
+            }
             
-            // 4. timeout(Duration) 메서드 찾기 (builder pattern)
+            // 4. timeout(Duration) 메서드 찾기 (static일 수 있음)
             log.info("🔍 CloseOptions.timeout() 메서드 찾는 중...");
-            Method timeoutMethod = closeOptionsClass.getMethod("timeout", Duration.class);
-            log.info("✅ timeout() 메서드 찾음: {}", timeoutMethod);
-            closeOptions = timeoutMethod.invoke(closeOptions, timeout);
-            log.info("✅ CloseOptions에 timeout 설정 완료: {}초", timeout.getSeconds());
+            Method timeoutMethod = null;
+            try {
+                // static 메서드로 시도
+                timeoutMethod = closeOptionsClass.getMethod("timeout", Duration.class);
+                log.info("✅ timeout() 메서드 찾음: {} (static: {})", timeoutMethod, 
+                        java.lang.reflect.Modifier.isStatic(timeoutMethod.getModifiers()));
+            } catch (NoSuchMethodException e) {
+                log.error("❌ timeout() 메서드를 찾을 수 없습니다");
+                throw e;
+            }
             
-            // 5. groupMembership() 메서드 찾기 (builder pattern)
-            log.info("🔍 CloseOptions.groupMembership() 메서드 찾는 중...");
-            Method groupMembershipMethod = closeOptionsClass.getMethod("groupMembership", groupMembershipOperationEnum);
-            log.info("✅ groupMembership() 메서드 찾음: {}", groupMembershipMethod);
-            closeOptions = groupMembershipMethod.invoke(closeOptions, groupMembershipOp);
-            log.info("✅ CloseOptions에 GroupMembershipOperation 설정 완료: {}", groupMembershipOp);
+            // timeout() 호출 (static이면 null, 아니면 인스턴스 필요)
+            Object closeOptions;
+            if (java.lang.reflect.Modifier.isStatic(timeoutMethod.getModifiers())) {
+                closeOptions = timeoutMethod.invoke(null, timeout);
+                log.info("✅ CloseOptions.timeout() static 호출 완료: {}초", timeout.getSeconds());
+            } else {
+                // 인스턴스 생성 후 호출
+                java.lang.reflect.Constructor<?> closeOptionsConstructor = closeOptionsClass.getDeclaredConstructor();
+                closeOptionsConstructor.setAccessible(true);
+                closeOptions = closeOptionsConstructor.newInstance();
+                log.info("✅ CloseOptions 인스턴스 생성 완료");
+                closeOptions = timeoutMethod.invoke(closeOptions, timeout);
+                log.info("✅ CloseOptions에 timeout 설정 완료: {}초", timeout.getSeconds());
+            }
+            
+            // 5. groupMembership() 또는 다른 이름의 메서드 찾기
+            log.info("🔍 GroupMembershipOperation 설정 메서드 찾는 중...");
+            Method groupMembershipMethod = null;
+            String[] possibleMethodNames = {"groupMembership", "withGroupMembership", "setGroupMembership"};
+            
+            for (String methodName : possibleMethodNames) {
+                try {
+                    groupMembershipMethod = closeOptionsClass.getMethod(methodName, groupMembershipOperationEnum);
+                    log.info("✅ {}() 메서드 찾음: {}", methodName, groupMembershipMethod);
+                    break;
+                } catch (NoSuchMethodException e) {
+                    log.debug("메서드 '{}'을 찾을 수 없음", methodName);
+                }
+            }
+            
+            // 메서드를 찾지 못한 경우, 파라미터 타입이 다른지 확인
+            if (groupMembershipMethod == null) {
+                log.info("🔍 GroupMembershipOperation을 받는 다른 메서드 찾는 중...");
+                for (Method m : allMethods) {
+                    Class<?>[] paramTypes = m.getParameterTypes();
+                    if (paramTypes.length == 1 && paramTypes[0].equals(groupMembershipOperationEnum)) {
+                        groupMembershipMethod = m;
+                        log.info("✅ 메서드 발견: {}", m);
+                        break;
+                    }
+                }
+            }
+            
+            if (groupMembershipMethod != null) {
+                if (java.lang.reflect.Modifier.isStatic(groupMembershipMethod.getModifiers())) {
+                    closeOptions = groupMembershipMethod.invoke(null, groupMembershipOp);
+                } else {
+                    closeOptions = groupMembershipMethod.invoke(closeOptions, groupMembershipOp);
+                }
+                log.info("✅ CloseOptions에 GroupMembershipOperation 설정 완료: {}", groupMembershipOp);
+            } else {
+                log.warn("⚠️ GroupMembershipOperation 설정 메서드를 찾을 수 없습니다. timeout만 설정합니다.");
+            }
             
             // 6. Consumer.close(CloseOptions) 메서드 찾기 (실제 Kafka Consumer 사용)
             log.info("🔍 Consumer.close(CloseOptions) 메서드 찾는 중...");

@@ -149,3 +149,4 @@ Spring Kafka의 내부 구조상:
 3. **Fallback 처리**: CloseOptions를 찾을 수 없으면 기본 `consumer.close(timeout)` 사용
 
 
+

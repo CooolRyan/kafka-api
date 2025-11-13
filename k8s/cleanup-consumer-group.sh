@@ -27,3 +27,4 @@ kubectl scale statefulset "$STATEFULSET_NAME" -n "$NAMESPACE" --replicas=2
 
 echo "=== 완료 ==="
 
+
