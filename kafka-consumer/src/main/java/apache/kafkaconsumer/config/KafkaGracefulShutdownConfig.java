@@ -130,18 +130,10 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                         kafkaContainer.stop();
                     } catch (java.util.ConcurrentModificationException e) {
                         log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. container.stop() 사용");
-                        // Spring Kafka가 이미 종료 중이므로 container.stop()만 호출
                         kafkaContainer.stop();
-                    } catch (InvocationTargetException e) {
-                        // InvocationTargetException의 원인 확인
-                        Throwable cause = e.getCause();
-                        if (cause instanceof java.util.ConcurrentModificationException) {
-                            log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. container.stop() 사용");
-                            kafkaContainer.stop();
-                        } else {
-                            log.error("❌ CloseOptions 호출 중 오류: {}", cause.getMessage(), cause);
-                            kafkaContainer.stop();
-                        }
+                    } catch (Exception e) {
+                        log.error("❌ CloseOptions 호출 중 오류: {}", e.getMessage(), e);
+                        kafkaContainer.stop();
                     }
                 } else {
                     // Consumer를 가져올 수 없으면 container만 중지
@@ -425,7 +417,8 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. consumer.close() 호출 불가");
                 throw (java.util.ConcurrentModificationException) cause;
             }
-            throw new RuntimeException("CloseOptions 호출 중 오류", e);
+            // 다른 예외는 RuntimeException으로 감싸서 throw
+            throw new RuntimeException("CloseOptions 호출 중 오류: " + (cause != null ? cause.getMessage() : e.getMessage()), cause != null ? cause : e);
         } catch (Exception e) {
             log.error("❌ CloseOptions 사용 중 오류: {}", e.getMessage(), e);
             log.error("   - 예외 타입: {}", e.getClass().getName());
