@@ -99,7 +99,10 @@ spring:
         # 
         # ⚠️ 주의: 이전 파드가 아직 consumer group에 있으면 UnreleasedInstanceIdException 발생
         # 해결: StatefulSet이 순차적으로 파드를 종료/시작하므로 자동으로 해결됨
-        group.instance.id: ${POD_NAME:${HOSTNAME:consumer-${random.value}}}  # Pod 이름만 사용 (Static Group Membership)
+        # 
+        # 임시 해결: group.instance.id를 고유하게 만들어 충돌 방지
+        # (완전한 Static Group Membership을 원한다면 이전 파드 완전 종료 후 Pod 이름만 사용)
+        group.instance.id: ${POD_NAME:${HOSTNAME:consumer-${random.value}}}-${random.value}
         # Kafka 배치 처리 최적화 설정 (TPS 600 처리용)
         fetch.min.bytes: 1024  # 1KB 이상 모이면 즉시 가져오기 (대기 시간 최소화)
         fetch.max.wait.ms: 100  # 최대 100ms 대기 (빠른 응답)
