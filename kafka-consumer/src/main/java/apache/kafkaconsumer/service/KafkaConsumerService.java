@@ -68,7 +68,6 @@ public class KafkaConsumerService {
      */
     @KafkaListener(
         topics = "jmeter", 
-        groupId = "${spring.kafka.consumer.group-id}",
         concurrency = "2"
     )
     public void consumeBatch(List<ConsumerRecord<String, String>> records, Acknowledgment acknowledgment) {
@@ -104,7 +103,6 @@ public class KafkaConsumerService {
     /*
     @KafkaListener(
         topics = "jmeter", 
-        groupId = "${spring.kafka.consumer.group-id}",
         concurrency = "2"
     )
     public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
