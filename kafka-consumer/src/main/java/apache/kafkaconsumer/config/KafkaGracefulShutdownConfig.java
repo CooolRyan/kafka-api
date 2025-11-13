@@ -142,49 +142,11 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
     }
     
     private void closeConsumerWithOptions(Consumer<?, ?> consumer, Duration timeout) {
-        // Consumer 클래스의 모든 메서드 확인
-        log.info("🔍 Consumer 클래스: {}", consumer.getClass().getName());
-        log.info("🔍 Consumer 클래스 로더: {}", consumer.getClass().getClassLoader());
-        
-        // Consumer 클래스의 close 메서드 확인
-        Method[] methods = consumer.getClass().getMethods();
-        log.info("🔍 Consumer 클래스의 close 메서드들:");
-        for (Method m : methods) {
-            if (m.getName().equals("close")) {
-                log.info("   - close({})", java.util.Arrays.toString(m.getParameterTypes()));
-            }
-        }
-        
         try {
             // 1. CloseOptions 클래스 찾기
             log.info("🔍 CloseOptions 클래스 찾는 중...");
-            Class<?> closeOptionsClass = null;
-            try {
-                closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.Consumer$CloseOptions");
-                log.info("✅ CloseOptions 클래스 찾음: {}", closeOptionsClass.getName());
-            } catch (ClassNotFoundException e) {
-                log.error("❌ CloseOptions 클래스를 찾을 수 없습니다!");
-                log.error("   - 찾은 경로: org.apache.kafka.clients.consumer.Consumer$CloseOptions");
-                log.error("   - Consumer 클래스: {}", consumer.getClass().getName());
-                log.error("   - Consumer 패키지: {}", consumer.getClass().getPackage().getName());
-                
-                // Consumer 클래스의 내부 클래스 확인
-                Class<?>[] innerClasses = consumer.getClass().getDeclaredClasses();
-                log.error("   - Consumer 내부 클래스들:");
-                for (Class<?> inner : innerClasses) {
-                    log.error("     * {}", inner.getName());
-                }
-                
-                // Consumer 클래스의 모든 메서드 재확인
-                log.error("   - Consumer의 모든 메서드:");
-                for (Method m : consumer.getClass().getDeclaredMethods()) {
-                    if (m.getName().contains("close") || m.getName().contains("Close")) {
-                        log.error("     * {} {}", m.getName(), java.util.Arrays.toString(m.getParameterTypes()));
-                    }
-                }
-                
-                throw e;
-            }
+            Class<?> closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.Consumer$CloseOptions");
+            log.info("✅ CloseOptions 클래스 찾음: {}", closeOptionsClass.getName());
             
             // 2. GroupMembershipOperation Enum 찾기
             log.info("🔍 GroupMembershipOperation Enum 찾는 중...");
@@ -192,38 +154,43 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 "org.apache.kafka.clients.consumer.Consumer$CloseOptions$GroupMembershipOperation");
             log.info("✅ GroupMembershipOperation Enum 찾음: {}", groupMembershipOperationEnum.getName());
             
-            Object remainInGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "REMAIN_IN_GROUP");
-            log.info("✅ REMAIN_IN_GROUP Enum 값: {}", remainInGroup);
+            // DONT_LEAVE_GROUP 사용 (REMAIN_IN_GROUP이 아님!)
+            Object dontLeaveGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "DONT_LEAVE_GROUP");
+            log.info("✅ DONT_LEAVE_GROUP Enum 값: {}", dontLeaveGroup);
             
-            // 3. CloseOptions.timeout() 메서드 찾기
+            // 3. CloseOptions 생성자 찾기 (new CloseOptions())
+            log.info("🔍 CloseOptions 생성자 찾는 중...");
+            java.lang.reflect.Constructor<?> closeOptionsConstructor = closeOptionsClass.getDeclaredConstructor();
+            closeOptionsConstructor.setAccessible(true);
+            Object closeOptions = closeOptionsConstructor.newInstance();
+            log.info("✅ CloseOptions 인스턴스 생성 완료");
+            
+            // 4. timeout(Duration) 메서드 찾기 (builder pattern)
             log.info("🔍 CloseOptions.timeout() 메서드 찾는 중...");
             Method timeoutMethod = closeOptionsClass.getMethod("timeout", Duration.class);
             log.info("✅ timeout() 메서드 찾음: {}", timeoutMethod);
+            closeOptions = timeoutMethod.invoke(closeOptions, timeout);
+            log.info("✅ CloseOptions에 timeout 설정 완료: {}초", timeout.getSeconds());
             
-            Object closeOptions = timeoutMethod.invoke(null, timeout);
-            log.info("✅ CloseOptions 인스턴스 생성 완료");
+            // 5. groupMembership() 메서드 찾기 (builder pattern)
+            log.info("🔍 CloseOptions.groupMembership() 메서드 찾는 중...");
+            Method groupMembershipMethod = closeOptionsClass.getMethod("groupMembership", groupMembershipOperationEnum);
+            log.info("✅ groupMembership() 메서드 찾음: {}", groupMembershipMethod);
+            closeOptions = groupMembershipMethod.invoke(closeOptions, dontLeaveGroup);
+            log.info("✅ CloseOptions에 DONT_LEAVE_GROUP 설정 완료");
             
-            // 4. withGroupMembershipOperation() 메서드 찾기
-            log.info("🔍 withGroupMembershipOperation() 메서드 찾는 중...");
-            Method withGroupMembershipOperation = closeOptionsClass.getMethod(
-                "withGroupMembershipOperation", groupMembershipOperationEnum);
-            log.info("✅ withGroupMembershipOperation() 메서드 찾음: {}", withGroupMembershipOperation);
-            
-            closeOptions = withGroupMembershipOperation.invoke(closeOptions, remainInGroup);
-            log.info("✅ CloseOptions에 REMAIN_IN_GROUP 설정 완료");
-            
-            // 5. Consumer.close(CloseOptions) 메서드 찾기
+            // 6. Consumer.close(CloseOptions) 메서드 찾기
             log.info("🔍 Consumer.close(CloseOptions) 메서드 찾는 중...");
             Method closeMethod = consumer.getClass().getMethod("close", closeOptionsClass);
             log.info("✅ close(CloseOptions) 메서드 찾음: {}", closeMethod);
             
-            // 6. close() 호출
+            // 7. close() 호출
             log.info("🚀 Consumer.close(CloseOptions) 호출 시작...");
+            log.info("   - Timeout: {}초", timeout.getSeconds());
+            log.info("   - GroupMembershipOperation: DONT_LEAVE_GROUP");
             closeMethod.invoke(consumer, closeOptions);
             
             log.info("✅ Consumer.close(CloseOptions) 호출 완료");
-            log.info("   - GroupMembershipOperation: REMAIN_IN_GROUP");
-            log.info("   - Timeout: {}초", timeout.getSeconds());
             
         } catch (ClassNotFoundException e) {
             log.error("❌❌❌ CloseOptions 클래스를 찾을 수 없습니다! ❌❌❌");
@@ -252,7 +219,6 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
         } catch (Exception e) {
             log.error("❌ CloseOptions 사용 중 오류: {}", e.getMessage(), e);
             log.error("   - 예외 타입: {}", e.getClass().getName());
-            e.printStackTrace();
             try {
                 log.warn("⚠️ 기본 consumer.close() 사용");
                 consumer.close(timeout);
