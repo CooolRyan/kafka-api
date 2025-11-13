@@ -1,56 +1,36 @@
 package apache.kafkaconsumer.config;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.SmartLifecycle;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
+import org.springframework.kafka.listener.KafkaMessageListenerContainer;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Kafka Graceful Shutdown Configuration
- * 
- * Spring Kafka의 기본 종료 프로세스를 사용하여 graceful shutdown 수행
- * 
- * Static Group Membership (group.instance.id)과 함께 사용하면
- * 롤링 업데이트 시 파티션 할당이 유지됨
- * 
- * SmartLifecycle을 사용하여 Spring Kafka의 기본 종료 프로세스보다 먼저 실행되도록 함
- * (phase를 낮게 설정하여 다른 Lifecycle보다 먼저 stop됨)
- * 
- * 참고: Kafka 4.1 CloseOptions는 Spring Kafka의 기본 종료 프로세스와 충돌할 수 있어
- * 현재는 사용하지 않음. 대신 Spring Kafka의 기본 종료 프로세스를 사용하며,
- * terminationGracePeriodSeconds 동안 대기합니다.
+ * Kafka 4.1 CloseOptions를 사용한 Graceful Shutdown
  */
 @Component
 @Slf4j
-public class KafkaGracefulShutdownConfig implements SmartLifecycle {
+public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextClosedEvent> {
 
     private final KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
-    private final AtomicBoolean running = new AtomicBoolean(false);
 
     public KafkaGracefulShutdownConfig(KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry) {
         this.kafkaListenerEndpointRegistry = kafkaListenerEndpointRegistry;
     }
 
-    @Override
-    public void start() {
-        running.set(true);
-    }
-
-    @Override
-    public void stop() {
-        if (!running.getAndSet(false)) {
-            return; // 이미 종료됨
-        }
-
-        log.info("🛑 Kafka Consumer graceful shutdown 시작...");
-        log.info("   Spring Kafka의 기본 종료 프로세스를 사용합니다.");
-        log.info("   Static Group Membership (group.instance.id)으로 파티션 할당이 유지됩니다.");
+    public void onApplicationEvent(ContextClosedEvent event) {
+        log.info("🛑 Kafka 4.1 CloseOptions를 사용하여 graceful shutdown 시작...");
         
-        // 모든 Kafka Listener Container 중지
         Collection<MessageListenerContainer> containers = kafkaListenerEndpointRegistry.getAllListenerContainers();
         
         for (MessageListenerContainer container : containers) {
@@ -58,16 +38,21 @@ public class KafkaGracefulShutdownConfig implements SmartLifecycle {
                 log.info("📦 Listener Container '{}' 종료 중...", container.getListenerId());
                 
                 try {
-                    // Spring Kafka의 기본 종료 프로세스 사용
-                    // container.stop()을 호출하면 Spring Kafka가 내부적으로
-                    // 모든 하위 container와 consumer를 안전하게 종료함
-                    container.stop();
+                    if (container instanceof ConcurrentMessageListenerContainer) {
+                        stopContainerWithCloseOptions((ConcurrentMessageListenerContainer) container, Duration.ofSeconds(60));
+                    } else {
+                        container.stop();
+                    }
                     
                     log.info("✅ Listener Container '{}' 종료 완료", container.getListenerId());
                 } catch (Exception e) {
-                    log.error("❌ Listener Container '{}' 종료 중 오류 발생: {}", 
+                    log.error("❌ Listener Container '{}' 종료 중 오류: {}", 
                         container.getListenerId(), e.getMessage(), e);
-                    // 이미 종료 중일 수 있으므로 무시
+                    try {
+                        container.stop();
+                    } catch (Exception ex) {
+                        log.error("❌ Fallback stop()도 실패: {}", ex.getMessage());
+                    }
                 }
             }
         }
@@ -75,32 +60,82 @@ public class KafkaGracefulShutdownConfig implements SmartLifecycle {
         log.info("🎯 모든 Kafka Consumer graceful shutdown 완료");
     }
 
-    @Override
-    public boolean isRunning() {
-        return running.get();
+    private void stopContainerWithCloseOptions(ConcurrentMessageListenerContainer container, Duration timeout) {
+        try {
+            Field containersField = ConcurrentMessageListenerContainer.class.getDeclaredField("containers");
+            containersField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Collection<KafkaMessageListenerContainer<?, ?>> containers = 
+                (Collection<KafkaMessageListenerContainer<?, ?>>) containersField.get(container);
+            
+            for (KafkaMessageListenerContainer<?, ?> kafkaContainer : containers) {
+                if (!kafkaContainer.isRunning()) {
+                    continue;
+                }
+                
+                Consumer<?, ?> consumer = getConsumerFromContainer(kafkaContainer);
+                
+                if (consumer != null) {
+                    closeConsumerWithOptions(consumer, timeout);
+                    log.info("✅ Consumer.close(CloseOptions) 호출 완료");
+                } else {
+                    kafkaContainer.stop();
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Container 종료 중 오류: {}", e.getMessage(), e);
+            container.stop();
+        }
     }
-
-    /**
-     * phase를 낮게 설정하여 다른 Lifecycle Bean들보다 먼저 stop되도록 함
-     * KafkaListenerEndpointRegistry의 기본 phase는 Integer.MAX_VALUE이므로
-     * 이 값보다 낮게 설정하면 먼저 실행됨
-     */
-    @Override
-    public int getPhase() {
-        return Integer.MAX_VALUE - 1;
+    
+    @SuppressWarnings("unchecked")
+    private Consumer<?, ?> getConsumerFromContainer(KafkaMessageListenerContainer<?, ?> container) {
+        try {
+            Field listenerConsumerField = KafkaMessageListenerContainer.class.getDeclaredField("listenerConsumer");
+            listenerConsumerField.setAccessible(true);
+            Object listenerConsumer = listenerConsumerField.get(container);
+            
+            if (listenerConsumer != null) {
+                Field consumerField = listenerConsumer.getClass().getDeclaredField("consumer");
+                consumerField.setAccessible(true);
+                return (Consumer<?, ?>) consumerField.get(listenerConsumer);
+            }
+        } catch (Exception e) {
+            log.debug("리플렉션으로 consumer 접근 실패: {}", e.getMessage());
+        }
+        return null;
     }
-
-    /**
-     * 참고: CloseOptions는 Spring Kafka의 기본 종료 프로세스와 충돌할 수 있으므로
-     * 현재는 사용하지 않음
-     * 
-     * 대신 Spring Kafka의 기본 종료 프로세스를 사용하며,
-     * Static Group Membership (group.instance.id)과 함께 사용하면
-     * 파티션 할당이 유지됩니다.
-     * 
-     * Spring Kafka는 자동으로 graceful shutdown을 처리하며,
-     * terminationGracePeriodSeconds 동안 대기합니다.
-     */
-
+    
+    private void closeConsumerWithOptions(Consumer<?, ?> consumer, Duration timeout) {
+        try {
+            Class<?> closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.Consumer$CloseOptions");
+            Class<?> groupMembershipOperationEnum = Class.forName(
+                "org.apache.kafka.clients.consumer.Consumer$CloseOptions$GroupMembershipOperation");
+            
+            Object remainInGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "REMAIN_IN_GROUP");
+            
+            Method timeoutMethod = closeOptionsClass.getMethod("timeout", Duration.class);
+            Object closeOptions = timeoutMethod.invoke(null, timeout);
+            
+            Method withGroupMembershipOperation = closeOptionsClass.getMethod(
+                "withGroupMembershipOperation", groupMembershipOperationEnum);
+            closeOptions = withGroupMembershipOperation.invoke(closeOptions, remainInGroup);
+            
+            Method closeMethod = consumer.getClass().getMethod("close", closeOptionsClass);
+            closeMethod.invoke(consumer, closeOptions);
+            
+            log.info("✅ Consumer.close(CloseOptions) 호출 완료");
+            log.info("   - GroupMembershipOperation: REMAIN_IN_GROUP");
+            log.info("   - Timeout: {}초", timeout.getSeconds());
+            
+        } catch (ClassNotFoundException e) {
+            log.warn("⚠️ Kafka 4.1 CloseOptions를 찾을 수 없습니다. 기본 consumer.close() 사용");
+            consumer.close(timeout);
+        } catch (Exception e) {
+            log.error("❌ CloseOptions 사용 중 오류: {}", e.getMessage(), e);
+            consumer.close(timeout);
+        }
+    }
 }
 
