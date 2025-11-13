@@ -1,9 +1,14 @@
 package apache.kafkaconsumer.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.errors.UnreleasedInstanceIdException;
-import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * Kafka Consumer 에러 핸들러
@@ -14,14 +19,41 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Slf4j
-public class KafkaConsumerErrorHandler extends DefaultErrorHandler {
+public class KafkaConsumerErrorHandler implements CommonErrorHandler {
 
-    public KafkaConsumerErrorHandler() {
-        super();
+    @Override
+    public void handleOtherException(Exception thrownException, 
+                                     boolean committed,
+                                     Consumer<?, ?> consumer,
+                                     MessageListenerContainer container) {
+        
+        Throwable cause = thrownException.getCause();
+        if (cause instanceof UnreleasedInstanceIdException) {
+            UnreleasedInstanceIdException exception = (UnreleasedInstanceIdException) cause;
+            
+            log.warn("⚠️ UnreleasedInstanceIdException 발생: {}", exception.getMessage());
+            log.warn("   이전 파드가 아직 consumer group에 있습니다.");
+            log.warn("   해결 방법:");
+            log.warn("   1. 이전 파드가 완전히 종료될 때까지 대기 (권장)");
+            log.warn("   2. 또는 consumer group을 수동으로 정리");
+            log.warn("   3. 또는 group.instance.id를 고유하게 변경");
+            log.warn("   Spring Kafka가 자동으로 재시도합니다...");
+            
+            // UnreleasedInstanceIdException은 재시도 가능한 예외이므로
+            // 로그만 남기고 Spring Kafka가 자동으로 재시도하도록 함
+            
+        } else {
+            log.error("❌ Consumer 에러 발생: {}", thrownException.getMessage(), thrownException);
+        }
     }
 
-    // handleOtherException 메서드는 DefaultErrorHandler에서 이미 처리하므로
-    // 별도로 오버라이드하지 않음
-    // UnreleasedInstanceIdException은 Spring Kafka가 자동으로 재시도함
+    @Override
+    public void handleRemaining(Exception thrownException, 
+                                List<ConsumerRecord<?, ?>> records,
+                                Consumer<?, ?> consumer,
+                                MessageListenerContainer container) {
+        log.error("❌ 처리되지 않은 레코드가 있습니다: {}개", records.size());
+        log.error("   에러: {}", thrownException.getMessage(), thrownException);
+    }
 }
 
