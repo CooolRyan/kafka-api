@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.errors.UnreleasedInstanceIdException;
-import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +17,11 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Slf4j
-public class KafkaConsumerErrorHandler implements CommonErrorHandler {
+public class KafkaConsumerErrorHandler extends DefaultErrorHandler {
+
+    public KafkaConsumerErrorHandler() {
+        super();
+    }
 
     @Override
     public void handleOtherException(Exception thrownException, 
@@ -37,18 +41,14 @@ public class KafkaConsumerErrorHandler implements CommonErrorHandler {
             log.warn("   3. 또는 group.instance.id를 고유하게 변경");
             log.warn("   Spring Kafka가 자동으로 재시도합니다...");
             
+            // DefaultErrorHandler의 기본 동작 수행 (재시도 등)
+            super.handleOtherException(thrownException, committed, consumer, container);
+            
         } else {
             log.error("❌ Consumer 에러 발생: {}", thrownException.getMessage(), thrownException);
+            // 다른 에러는 기본 핸들러에 위임
+            super.handleOtherException(thrownException, committed, consumer, container);
         }
-    }
-
-    @Override
-    public void handleRemaining(Exception thrownException, 
-                                java.util.List<ConsumerRecord<?, ?>> records,
-                                Consumer<?, ?> consumer,
-                                MessageListenerContainer container) {
-        log.error("❌ 처리되지 않은 레코드가 있습니다: {}개", records.size());
-        log.error("   에러: {}", thrownException.getMessage(), thrownException);
     }
 }
 
