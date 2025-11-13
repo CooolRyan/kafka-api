@@ -64,8 +64,7 @@ public class QueueKafkaConsumerService {
     @KafkaListener(
         topics = "jmeter-queue",  // 새로운 토픽
         groupId = "${spring.kafka.consumer.group-id}",  // 동일한 consumer group 사용
-        concurrency = "1",
-        containerFactory = "kafkaListenerContainerFactory"
+        concurrency = "1"
     )
     public void consumeQueue(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
         try {
