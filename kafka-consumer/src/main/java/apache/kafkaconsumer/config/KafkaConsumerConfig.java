@@ -12,8 +12,6 @@ import org.springframework.kafka.listener.ContainerProperties;
 
 /**
  * Kafka Consumer 설정
- * 
- * 에러 핸들러 등록 및 Container Factory 설정
  */
 @Configuration
 @Slf4j
@@ -21,7 +19,6 @@ import org.springframework.kafka.listener.ContainerProperties;
 public class KafkaConsumerConfig {
 
     private final KafkaProperties kafkaProperties;
-    private final KafkaConsumerErrorHandler errorHandler;
 
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
@@ -37,9 +34,6 @@ public class KafkaConsumerConfig {
         
         factory.setConsumerFactory(consumerFactory());
         
-        // 에러 핸들러 등록
-        factory.setCommonErrorHandler(errorHandler);
-        
         // 배치 리스너 활성화 (application.yml의 type: batch와 함께 사용)
         factory.setBatchListener(true);
         
@@ -49,7 +43,6 @@ public class KafkaConsumerConfig {
         log.info("✅ KafkaListenerContainerFactory 설정 완료");
         log.info("   - Batch Listener: 활성화");
         log.info("   - Ack Mode: MANUAL");
-        log.info("   - Error Handler: 등록됨");
         
         return factory;
     }
