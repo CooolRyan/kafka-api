@@ -49,17 +49,4 @@ public class ConsumerController {
             return ResponseEntity.internalServerError().body("DLQ 재처리 중 오류 발생: " + e.getMessage());
         }
     }
-
-    /**
-     * GC 상태 조회 (GC 모니터링 제거로 비활성화)
-     */
-    // @GetMapping("/gc/status")
-    // public ResponseEntity<String> getGCStatus() {
-    //     try {
-    //         consumerService.logMemoryStatus();
-    //         return ResponseEntity.ok("GC 상태가 로그에 출력되었습니다.");
-    //     } catch (Exception e) {
-    //         return ResponseEntity.internalServerError().body("GC 상태 조회 중 오류 발생: " + e.getMessage());
-    //     }
-    // }
 }

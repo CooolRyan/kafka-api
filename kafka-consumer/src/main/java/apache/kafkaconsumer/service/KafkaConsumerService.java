@@ -5,8 +5,6 @@ import apache.kafkaconsumer.entity.MessageEntity;
 import apache.kafkaconsumer.repository.MessageRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -29,7 +27,6 @@ public class KafkaConsumerService {
     private final MessageRepository messageRepository;
     private final MeterRegistry meterRegistry;
     private final KafkaTemplate<String, Object> kafkaTemplate;
-    // private final GCMonitoringService gcMonitoringService; // GC 모니터링 제거
     
     // 배치 처리를 위한 큐
     private final BlockingQueue<MessageEntity> messageQueue = new LinkedBlockingQueue<>();
@@ -44,11 +41,11 @@ public class KafkaConsumerService {
     private final Counter dbInsertCounter;
     private final Counter dlqCounter;
     
+    // @RequiredArgsConstructor 제거하고 수동 생성자 사용 (Counter 초기화 필요)
     public KafkaConsumerService(MessageRepository messageRepository, MeterRegistry meterRegistry, KafkaTemplate<String, Object> kafkaTemplate) {
         this.messageRepository = messageRepository;
         this.meterRegistry = meterRegistry;
         this.kafkaTemplate = kafkaTemplate;
-        // this.gcMonitoringService = gcMonitoringService; // GC 모니터링 제거
         this.consumerCounter = Counter.builder("consumer_msg_total")
                 .description("전체 컨슈머된 메시지 수")
                 .register(meterRegistry);
@@ -61,41 +58,70 @@ public class KafkaConsumerService {
         
         // 배치 처리 스레드 시작 (DB 처리 비활성화)
         // startBatchProcessor();
-        
-        // GC 모니터링 시작 (완전 제거)
-        // startRealTimeGCMonitoring();
     }
 
     /**
-     * TPS 3000 처리를 위한 최적화된 메시지 소비
+     * [BATCH 모드] - 배치 처리 방식 (manual + batch 조합)
+     * - ack-mode: manual (Acknowledgment 파라미터 사용)
+     * - sync-commits: false (auto sync off)
+     * - type: batch (List<ConsumerRecord>)
      */
     @KafkaListener(
         topics = "jmeter", 
         groupId = "${spring.kafka.consumer.group-id}",
-        concurrency = "1", // 파티션 수의 2배 (3개 파티션 × 2)
-        containerFactory = "kafkaListenerContainerFactory"
+        concurrency = "2"
+    )
+    public void consumeBatch(List<ConsumerRecord<String, String>> records, Acknowledgment acknowledgment) {
+        log.debug("📥 jmeter 토픽에서 {}개 메시지 수신", records.size());
+        try {
+            if (records.isEmpty()) {
+                return;
+            }
+            
+            // 배치 consume만 처리 (DB 처리 없음)
+            for (ConsumerRecord<String, String> record : records) {
+                consumerCounter.increment();
+            }
+            
+            // 배치 consume 후 오프셋 커밋 (manual, sync-commits: false)
+            acknowledgment.acknowledge();
+            
+            long count = processedCount.addAndGet(records.size());
+            
+            if (count % 1000 == 0) {
+                log.info("배치 처리 완료: {}개 메시지, 총 처리 수: {}", records.size(), count);
+            }
+            
+        } catch (Exception e) {
+            log.error("배치 메시지 처리 중 오류 발생: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * [SINGLE 모드] - 주석 처리됨
+     * 개별 메시지 처리
+     */
+    /*
+    @KafkaListener(
+        topics = "jmeter", 
+        groupId = "${spring.kafka.consumer.group-id}",
+        concurrency = "2"
     )
     public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
         try {
             // 메시지 카운터 증가
             consumerCounter.increment();
             
-            // 메시지 엔티티 생성
-            MessageEntity message = new MessageEntity();
-            message.setMessageKey(record.key());
-            message.setMessageValue(record.value());
-            message.setTopic(record.topic());
-            message.setPartitionNumber(record.partition());
-            message.setOffsetNumber(record.offset());
-            message.setCreatedAt(LocalDateTime.now());
+            // DB 저장 없이 consume만 처리
+            // MessageEntity message = new MessageEntity();
+            // message.setMessageKey(record.key());
+            // message.setMessageValue(record.value());
+            // message.setTopic(record.topic());
+            // message.setPartitionNumber(record.partition());
+            // message.setOffsetNumber(record.offset());
+            // message.setCreatedAt(LocalDateTime.now());
             
-            // 배치 처리를 위한 큐에 추가 (DB 처리 비활성화)
-            // messageQueue.offer(message);
-            
-            // 오프셋 커밋을 위한 큐에 추가 (배치 처리 완료 후 커밋) (DB 처리 비활성화)
-            // acknowledgmentQueue.offer(acknowledgment);
-            
-            // 즉시 오프셋 커밋 (DB 처리 없이)
+            // 즉시 오프셋 커밋 (manual_immediate, sync-commits: false)
             acknowledgment.acknowledge();
             
             // 처리된 메시지 수 증가
@@ -103,13 +129,14 @@ public class KafkaConsumerService {
             
             // 1000개마다 로그 출력
             if (count % 1000 == 0) {
-                log.info("처리된 메시지 수: {}, 큐 크기: {}", count, messageQueue.size());
+                log.info("개별 메시지 처리 완료, 총 처리 수: {}", count);
             }
             
         } catch (Exception e) {
             log.error("메시지 처리 중 오류 발생: {}", e.getMessage(), e);
         }
     }
+    */
     
     /**
      * 배치 처리 스레드 (TPS 3000 처리용)
@@ -121,8 +148,8 @@ public class KafkaConsumerService {
             
             while (true) {
                 try {
-                    // 큐에서 메시지 가져오기 (최대 1000개 또는 500ms 대기)
-                    MessageEntity message = messageQueue.poll(500, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    // 큐에서 메시지 가져오기 (최대 1000개 또는 100ms 대기)
+                    MessageEntity message = messageQueue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS);
                     
                     if (message != null) {
                         batch.add(message);
@@ -130,10 +157,10 @@ public class KafkaConsumerService {
                     
                     long currentTime = System.currentTimeMillis();
                     boolean shouldProcess = batch.size() >= 1000 || // 1000개 모이면
-                                         (!batch.isEmpty() && (currentTime - lastProcessTime) >= 1000); // 1초 경과하면
+                                         (!batch.isEmpty() && (currentTime - lastProcessTime) >= 100); // 100ms 경과하면
                     
                     if (shouldProcess && !batch.isEmpty()) {
-                        processBatch(batch);  // 배치 DB 삽입 활성화
+                        processBatch(batch);
                         batch.clear();
                         lastProcessTime = currentTime;
                     }
@@ -149,7 +176,6 @@ public class KafkaConsumerService {
         
         batchProcessor.setName("batch-processor");
         batchProcessor.setDaemon(true);
-        batchProcessor.setPriority(Thread.MAX_PRIORITY); // 최고 우선순위
         batchProcessor.start();
     }
     
@@ -243,13 +269,6 @@ public class KafkaConsumerService {
         return String.format("처리된 메시지: %d, 큐 크기: %d, 배치 수: %d", 
                 processedCount.get(), messageQueue.size(), batchCount.get());
     }
-
-    /**
-     * GC 상태 로그 출력 (Controller에서 호출) - GC 모니터링 제거
-     */
-    // public void logMemoryStatus() {
-    //     gcMonitoringService.logMemoryStatus();
-    // }
     
     /**
      * DLQ 메시지 구조

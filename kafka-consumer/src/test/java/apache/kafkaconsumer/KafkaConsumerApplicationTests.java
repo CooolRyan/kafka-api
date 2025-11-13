@@ -17,3 +17,9 @@ class KafkaConsumerApplicationTests {
 
 
 
+
+
+
+
+
+

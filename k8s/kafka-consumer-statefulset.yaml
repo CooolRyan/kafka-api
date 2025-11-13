@@ -1,11 +1,12 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: kafka-consumer
   namespace: kafka-microservices
   labels:
     app: kafka-consumer
 spec:
+  serviceName: kafka-consumer-headless
   replicas: 2
   selector:
     matchLabels:
@@ -42,7 +43,8 @@ spec:
         - name: JAVA_OPTS
           value: "-Xms1g -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=16m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCApplicationStoppedTime -Xloggc:/tmp/gc.log"
         # Static Group Membership을 위한 Pod 이름 주입
-        # HOSTNAME은 Kubernetes에서 자동으로 Pod 이름으로 설정됨
+        # StatefulSet은 파드 이름이 안정적: kafka-consumer-0, kafka-consumer-1, ...
+        # 같은 인덱스의 파드가 같은 group.instance.id를 사용하므로 파티션 할당 유지
         - name: POD_NAME
           valueFrom:
             fieldRef:
@@ -71,9 +73,23 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 10
       # Graceful Shutdown: Kafka 4.1 CloseOptions timeout(60s)보다 길게 설정
-      # CloseOptions timeout 동안 consumer group에 머물러 있으므로, 그 시간보다 길어야 함
-      # 기본값(30초)보다 길게 설정하지 않으면 CloseOptions timeout 전에 강제 종료될 수 있음
       terminationGracePeriodSeconds: 90  # CloseOptions timeout(60s) + 여유시간(30s)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-consumer-headless
+  namespace: kafka-microservices
+  labels:
+    app: kafka-consumer
+spec:
+  clusterIP: None  # Headless Service (StatefulSet 필수)
+  selector:
+    app: kafka-consumer
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
 ---
 apiVersion: v1
 kind: Service
@@ -107,3 +123,6 @@ spec:
     targetPort: 8080
     protocol: TCP
   type: LoadBalancer
+
+
+
