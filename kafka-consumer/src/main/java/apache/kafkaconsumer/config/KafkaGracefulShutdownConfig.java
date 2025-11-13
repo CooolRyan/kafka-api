@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.SmartLifecycle;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.KafkaMessageListenerContainer;
@@ -11,6 +12,7 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Collection;
@@ -18,18 +20,49 @@ import java.util.ConcurrentModificationException;
 
 /**
  * Kafka 4.1 CloseOptions를 사용한 Graceful Shutdown
+ * SmartLifecycle을 구현하여 Spring Kafka보다 먼저 실행되도록 함
  */
 @Component
 @Slf4j
-public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextClosedEvent> {
+public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextClosedEvent>, SmartLifecycle {
 
     private final KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+    private volatile boolean running = false;
 
     public KafkaGracefulShutdownConfig(KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry) {
         this.kafkaListenerEndpointRegistry = kafkaListenerEndpointRegistry;
     }
+    
+    // SmartLifecycle 구현
+    @Override
+    public void start() {
+        running = true;
+    }
+    
+    @Override
+    public void stop() {
+        running = false;
+        gracefulShutdown();
+    }
+    
+    @Override
+    public boolean isRunning() {
+        return running;
+    }
+    
+    @Override
+    public int getPhase() {
+        // Spring Kafka의 기본 phase보다 낮게 설정하여 먼저 실행되도록 함
+        // Spring Kafka의 기본 phase는 Integer.MAX_VALUE이므로, 그보다 낮은 값 사용
+        return Integer.MAX_VALUE - 1000;
+    }
 
     public void onApplicationEvent(ContextClosedEvent event) {
+        // SmartLifecycle.stop()에서 처리하므로 여기서는 로그만
+        log.debug("ContextClosedEvent 수신 - SmartLifecycle.stop()에서 처리됨");
+    }
+    
+    private void gracefulShutdown() {
         log.info("🛑 Kafka 4.1 CloseOptions를 사용하여 graceful shutdown 시작...");
         
         Collection<MessageListenerContainer> containers = kafkaListenerEndpointRegistry.getAllListenerContainers();
@@ -69,22 +102,23 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 return;
             }
             
+            // Container를 중지시키기 전에 consumer를 가져와서 닫기
+            // Container가 중지되면 consumer에 접근할 수 없으므로, 먼저 가져와야 함
+            log.info("🔄 Consumer를 가져와서 CloseOptions로 닫는 중...");
+            
             Field containersField = ConcurrentMessageListenerContainer.class.getDeclaredField("containers");
             containersField.setAccessible(true);
             @SuppressWarnings("unchecked")
             Collection<KafkaMessageListenerContainer<?, ?>> containers = 
                 (Collection<KafkaMessageListenerContainer<?, ?>>) containersField.get(container);
             
+            // Consumer를 먼저 가져와서 닫기
             for (KafkaMessageListenerContainer<?, ?> kafkaContainer : containers) {
                 if (!kafkaContainer.isRunning()) {
                     continue;
                 }
                 
-                // Consumer에 접근하기 전에 container가 여전히 실행 중인지 확인
-                if (!kafkaContainer.isRunning()) {
-                    continue;
-                }
-                
+                // Consumer에 접근 (container가 실행 중일 때만 가능)
                 Consumer<?, ?> consumer = getConsumerFromContainer(kafkaContainer);
                 
                 if (consumer != null) {
@@ -92,12 +126,26 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                     try {
                         closeConsumerWithOptions(consumer, timeout);
                         log.info("✅ Consumer.close(CloseOptions) 호출 완료");
+                        // Consumer를 닫은 후 container 중지
+                        kafkaContainer.stop();
                     } catch (java.util.ConcurrentModificationException e) {
                         log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. container.stop() 사용");
                         // Spring Kafka가 이미 종료 중이므로 container.stop()만 호출
                         kafkaContainer.stop();
+                    } catch (InvocationTargetException e) {
+                        // InvocationTargetException의 원인 확인
+                        Throwable cause = e.getCause();
+                        if (cause instanceof java.util.ConcurrentModificationException) {
+                            log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. container.stop() 사용");
+                            kafkaContainer.stop();
+                        } else {
+                            log.error("❌ CloseOptions 호출 중 오류: {}", cause.getMessage(), cause);
+                            kafkaContainer.stop();
+                        }
                     }
                 } else {
+                    // Consumer를 가져올 수 없으면 container만 중지
+                    log.warn("⚠️ Consumer를 가져올 수 없습니다. container.stop()만 호출");
                     kafkaContainer.stop();
                 }
             }
@@ -370,6 +418,14 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
         } catch (java.util.ConcurrentModificationException e) {
             log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. consumer.close() 호출 불가");
             throw e; // 상위로 전파하여 container.stop() 사용
+        } catch (InvocationTargetException e) {
+            // InvocationTargetException의 원인 확인
+            Throwable cause = e.getCause();
+            if (cause instanceof java.util.ConcurrentModificationException) {
+                log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. consumer.close() 호출 불가");
+                throw (java.util.ConcurrentModificationException) cause;
+            }
+            throw new RuntimeException("CloseOptions 호출 중 오류", e);
         } catch (Exception e) {
             log.error("❌ CloseOptions 사용 중 오류: {}", e.getMessage(), e);
             log.error("   - 예외 타입: {}", e.getClass().getName());
