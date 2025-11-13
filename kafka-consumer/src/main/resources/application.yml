@@ -87,7 +87,7 @@ spring:
         # 동작 방식:
         # 1. 이전 파드: kafka-consumer-0 (group.instance.id = kafka-consumer-0)
         #    - 파티션 0, 1 할당
-        # 2. 이전 파드 종료 시작 → CloseOptions.REMAIN_IN_GROUP으로 consumer group에 머물러 있음
+        # 2. 이전 파드 종료 시작 → consumer group에서 정상적으로 종료
         #    - 파티션 할당은 유지됨 (리밸런싱 없음)
         # 3. 이전 파드가 완전히 종료됨 (terminationGracePeriodSeconds 동안)
         # 4. 새 파드: kafka-consumer-0 (같은 group.instance.id)
@@ -97,12 +97,9 @@ spring:
         # - 이전 파드가 완전히 종료된 후 새 파드가 시작됨
         # - terminationGracePeriodSeconds가 충분히 길어야 함 (90초 이상 권장)
         # 
-        # ⚠️ 주의: 이전 파드가 아직 consumer group에 있으면 UnreleasedInstanceIdException 발생
-        # 해결: StatefulSet이 순차적으로 파드를 종료/시작하므로 자동으로 해결됨
-        # 
-        # 임시 해결: group.instance.id를 고유하게 만들어 충돌 방지
-        # (완전한 Static Group Membership을 원한다면 이전 파드 완전 종료 후 Pod 이름만 사용)
-        group.instance.id: ${POD_NAME:${HOSTNAME:consumer-${random.value}}}-${random.value}
+        # Static Group Membership 설정 (주석 처리 - Deployment 사용 시 문제 발생 가능)
+        # StatefulSet 사용 시에만 활성화 권장
+        # group.instance.id: ${POD_NAME:${HOSTNAME:consumer-${random.value}}}
         # Kafka 배치 처리 최적화 설정 (TPS 600 처리용)
         fetch.min.bytes: 1024  # 1KB 이상 모이면 즉시 가져오기 (대기 시간 최소화)
         fetch.max.wait.ms: 100  # 최대 100ms 대기 (빠른 응답)
@@ -124,8 +121,6 @@ spring:
       poll-timeout: 500
       # 에러 핸들러 설정
       missing-topics-fatal: false
-      # 참고: Kafka 4.1 CloseOptions는 KafkaGracefulShutdownConfig에서 처리
-      # SIGTERM 수신 시 자동으로 consumer.close(CloseOptions.REMAIN_IN_GROUP) 호출
 
   # JPA 설정
   jpa:
