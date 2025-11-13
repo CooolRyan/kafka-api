@@ -14,6 +14,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.ConcurrentModificationException;
 
 /**
  * Kafka 4.1 CloseOptions를 사용한 Graceful Shutdown
@@ -62,6 +63,12 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
 
     private void stopContainerWithCloseOptions(ConcurrentMessageListenerContainer container, Duration timeout) {
         try {
+            // Container가 이미 종료 중이면 skip
+            if (!container.isRunning()) {
+                log.warn("⚠️ Container가 이미 종료 중입니다. skip");
+                return;
+            }
+            
             Field containersField = ConcurrentMessageListenerContainer.class.getDeclaredField("containers");
             containersField.setAccessible(true);
             @SuppressWarnings("unchecked")
@@ -73,11 +80,23 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                     continue;
                 }
                 
+                // Consumer에 접근하기 전에 container가 여전히 실행 중인지 확인
+                if (!kafkaContainer.isRunning()) {
+                    continue;
+                }
+                
                 Consumer<?, ?> consumer = getConsumerFromContainer(kafkaContainer);
                 
                 if (consumer != null) {
-                    closeConsumerWithOptions(consumer, timeout);
-                    log.info("✅ Consumer.close(CloseOptions) 호출 완료");
+                    // CloseOptions 사용 시도
+                    try {
+                        closeConsumerWithOptions(consumer, timeout);
+                        log.info("✅ Consumer.close(CloseOptions) 호출 완료");
+                    } catch (java.util.ConcurrentModificationException e) {
+                        log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. container.stop() 사용");
+                        // Spring Kafka가 이미 종료 중이므로 container.stop()만 호출
+                        kafkaContainer.stop();
+                    }
                 } else {
                     kafkaContainer.stop();
                 }
@@ -85,13 +104,23 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             
         } catch (Exception e) {
             log.error("❌ Container 종료 중 오류: {}", e.getMessage(), e);
-            container.stop();
+            // Fallback: container.stop()만 호출
+            try {
+                container.stop();
+            } catch (Exception ex) {
+                log.error("❌ container.stop()도 실패: {}", ex.getMessage());
+            }
         }
     }
     
     @SuppressWarnings("unchecked")
     private Consumer<?, ?> getConsumerFromContainer(KafkaMessageListenerContainer<?, ?> container) {
         try {
+            // Container가 실행 중일 때만 접근
+            if (!container.isRunning()) {
+                return null;
+            }
+            
             Field listenerConsumerField = KafkaMessageListenerContainer.class.getDeclaredField("listenerConsumer");
             listenerConsumerField.setAccessible(true);
             Object listenerConsumer = listenerConsumerField.get(container);
@@ -99,7 +128,12 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             if (listenerConsumer != null) {
                 Field consumerField = listenerConsumer.getClass().getDeclaredField("consumer");
                 consumerField.setAccessible(true);
-                return (Consumer<?, ?>) consumerField.get(listenerConsumer);
+                Consumer<?, ?> consumer = (Consumer<?, ?>) consumerField.get(listenerConsumer);
+                
+                // Consumer가 null이 아니고 container가 여전히 실행 중인지 확인
+                if (consumer != null && container.isRunning()) {
+                    return consumer;
+                }
             }
         } catch (Exception e) {
             log.debug("리플렉션으로 consumer 접근 실패: {}", e.getMessage());
@@ -108,21 +142,83 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
     }
     
     private void closeConsumerWithOptions(Consumer<?, ?> consumer, Duration timeout) {
+        // Consumer 클래스의 모든 메서드 확인
+        log.info("🔍 Consumer 클래스: {}", consumer.getClass().getName());
+        log.info("🔍 Consumer 클래스 로더: {}", consumer.getClass().getClassLoader());
+        
+        // Consumer 클래스의 close 메서드 확인
+        Method[] methods = consumer.getClass().getMethods();
+        log.info("🔍 Consumer 클래스의 close 메서드들:");
+        for (Method m : methods) {
+            if (m.getName().equals("close")) {
+                log.info("   - close({})", java.util.Arrays.toString(m.getParameterTypes()));
+            }
+        }
+        
         try {
-            Class<?> closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.Consumer$CloseOptions");
+            // 1. CloseOptions 클래스 찾기
+            log.info("🔍 CloseOptions 클래스 찾는 중...");
+            Class<?> closeOptionsClass = null;
+            try {
+                closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.Consumer$CloseOptions");
+                log.info("✅ CloseOptions 클래스 찾음: {}", closeOptionsClass.getName());
+            } catch (ClassNotFoundException e) {
+                log.error("❌ CloseOptions 클래스를 찾을 수 없습니다!");
+                log.error("   - 찾은 경로: org.apache.kafka.clients.consumer.Consumer$CloseOptions");
+                log.error("   - Consumer 클래스: {}", consumer.getClass().getName());
+                log.error("   - Consumer 패키지: {}", consumer.getClass().getPackage().getName());
+                
+                // Consumer 클래스의 내부 클래스 확인
+                Class<?>[] innerClasses = consumer.getClass().getDeclaredClasses();
+                log.error("   - Consumer 내부 클래스들:");
+                for (Class<?> inner : innerClasses) {
+                    log.error("     * {}", inner.getName());
+                }
+                
+                // Consumer 클래스의 모든 메서드 재확인
+                log.error("   - Consumer의 모든 메서드:");
+                for (Method m : consumer.getClass().getDeclaredMethods()) {
+                    if (m.getName().contains("close") || m.getName().contains("Close")) {
+                        log.error("     * {} {}", m.getName(), java.util.Arrays.toString(m.getParameterTypes()));
+                    }
+                }
+                
+                throw e;
+            }
+            
+            // 2. GroupMembershipOperation Enum 찾기
+            log.info("🔍 GroupMembershipOperation Enum 찾는 중...");
             Class<?> groupMembershipOperationEnum = Class.forName(
                 "org.apache.kafka.clients.consumer.Consumer$CloseOptions$GroupMembershipOperation");
+            log.info("✅ GroupMembershipOperation Enum 찾음: {}", groupMembershipOperationEnum.getName());
             
             Object remainInGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "REMAIN_IN_GROUP");
+            log.info("✅ REMAIN_IN_GROUP Enum 값: {}", remainInGroup);
             
+            // 3. CloseOptions.timeout() 메서드 찾기
+            log.info("🔍 CloseOptions.timeout() 메서드 찾는 중...");
             Method timeoutMethod = closeOptionsClass.getMethod("timeout", Duration.class);
-            Object closeOptions = timeoutMethod.invoke(null, timeout);
+            log.info("✅ timeout() 메서드 찾음: {}", timeoutMethod);
             
+            Object closeOptions = timeoutMethod.invoke(null, timeout);
+            log.info("✅ CloseOptions 인스턴스 생성 완료");
+            
+            // 4. withGroupMembershipOperation() 메서드 찾기
+            log.info("🔍 withGroupMembershipOperation() 메서드 찾는 중...");
             Method withGroupMembershipOperation = closeOptionsClass.getMethod(
                 "withGroupMembershipOperation", groupMembershipOperationEnum);
-            closeOptions = withGroupMembershipOperation.invoke(closeOptions, remainInGroup);
+            log.info("✅ withGroupMembershipOperation() 메서드 찾음: {}", withGroupMembershipOperation);
             
+            closeOptions = withGroupMembershipOperation.invoke(closeOptions, remainInGroup);
+            log.info("✅ CloseOptions에 REMAIN_IN_GROUP 설정 완료");
+            
+            // 5. Consumer.close(CloseOptions) 메서드 찾기
+            log.info("🔍 Consumer.close(CloseOptions) 메서드 찾는 중...");
             Method closeMethod = consumer.getClass().getMethod("close", closeOptionsClass);
+            log.info("✅ close(CloseOptions) 메서드 찾음: {}", closeMethod);
+            
+            // 6. close() 호출
+            log.info("🚀 Consumer.close(CloseOptions) 호출 시작...");
             closeMethod.invoke(consumer, closeOptions);
             
             log.info("✅ Consumer.close(CloseOptions) 호출 완료");
@@ -130,11 +226,39 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
             log.info("   - Timeout: {}초", timeout.getSeconds());
             
         } catch (ClassNotFoundException e) {
-            log.warn("⚠️ Kafka 4.1 CloseOptions를 찾을 수 없습니다. 기본 consumer.close() 사용");
-            consumer.close(timeout);
+            log.error("❌❌❌ CloseOptions 클래스를 찾을 수 없습니다! ❌❌❌");
+            log.error("   - Kafka 버전 확인 필요: kafka-clients:4.1.0이 실제로 포함되었는지 확인");
+            log.error("   - 의존성 트리 확인: gradle dependencies | grep kafka-clients");
+            log.error("   - 예외: {}", e.getMessage(), e);
+            try {
+                log.warn("⚠️ 기본 consumer.close() 사용");
+                consumer.close(timeout);
+            } catch (Exception ex) {
+                log.error("❌ consumer.close()도 실패: {}", ex.getMessage());
+            }
+        } catch (NoSuchMethodException e) {
+            log.error("❌❌❌ 메서드를 찾을 수 없습니다! ❌❌❌");
+            log.error("   - 찾지 못한 메서드: {}", e.getMessage());
+            log.error("   - 예외: {}", e.getMessage(), e);
+            try {
+                log.warn("⚠️ 기본 consumer.close() 사용");
+                consumer.close(timeout);
+            } catch (Exception ex) {
+                log.error("❌ consumer.close()도 실패: {}", ex.getMessage());
+            }
+        } catch (java.util.ConcurrentModificationException e) {
+            log.warn("⚠️ Consumer가 다른 스레드에서 사용 중입니다. consumer.close() 호출 불가");
+            throw e; // 상위로 전파하여 container.stop() 사용
         } catch (Exception e) {
             log.error("❌ CloseOptions 사용 중 오류: {}", e.getMessage(), e);
-            consumer.close(timeout);
+            log.error("   - 예외 타입: {}", e.getClass().getName());
+            e.printStackTrace();
+            try {
+                log.warn("⚠️ 기본 consumer.close() 사용");
+                consumer.close(timeout);
+            } catch (Exception ex) {
+                log.error("❌ consumer.close()도 실패: {}", ex.getMessage());
+            }
         }
     }
 }
