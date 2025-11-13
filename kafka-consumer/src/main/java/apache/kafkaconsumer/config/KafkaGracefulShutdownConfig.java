@@ -151,24 +151,83 @@ public class KafkaGracefulShutdownConfig implements ApplicationListener<ContextC
                 return;
             }
             
-            // 1. CloseOptions 클래스 찾기 (독립 클래스, Consumer$가 아님!)
+            // 1. CloseOptions 클래스 찾기 - Consumer의 close 메서드에서 동적으로 찾기
             log.info("🔍 CloseOptions 클래스 찾는 중...");
-            Class<?> closeOptionsClass = Class.forName("org.apache.kafka.clients.consumer.CloseOptions");
-            log.info("✅ CloseOptions 클래스 찾음: {}", closeOptionsClass.getName());
+            Class<?> closeOptionsClass = null;
+            
+            // Consumer의 모든 close 메서드 확인
+            Method[] methods = actualConsumer.getClass().getMethods();
+            for (Method m : methods) {
+                if (m.getName().equals("close") && m.getParameterCount() == 1) {
+                    Class<?>[] paramTypes = m.getParameterTypes();
+                    if (paramTypes.length == 1 && !paramTypes[0].equals(Duration.class)) {
+                        // CloseOptions를 파라미터로 받는 close 메서드 찾음
+                        closeOptionsClass = paramTypes[0];
+                        log.info("✅ Consumer.close() 메서드에서 CloseOptions 클래스 발견: {}", closeOptionsClass.getName());
+                        break;
+                    }
+                }
+            }
+            
+            // 동적으로 찾지 못한 경우 여러 경로 시도
+            if (closeOptionsClass == null) {
+                String[] possiblePaths = {
+                    "org.apache.kafka.clients.consumer.CloseOptions",
+                    "org.apache.kafka.clients.consumer.Consumer$CloseOptions"
+                };
+                
+                for (String path : possiblePaths) {
+                    try {
+                        closeOptionsClass = Class.forName(path);
+                        log.info("✅ CloseOptions 클래스 찾음: {}", closeOptionsClass.getName());
+                        break;
+                    } catch (ClassNotFoundException e) {
+                        log.debug("경로 '{}'에서 CloseOptions를 찾을 수 없음", path);
+                    }
+                }
+            }
+            
+            if (closeOptionsClass == null) {
+                throw new ClassNotFoundException("CloseOptions 클래스를 찾을 수 없습니다");
+            }
             
             // 2. GroupMembershipOperation Enum 찾기
             log.info("🔍 GroupMembershipOperation Enum 찾는 중...");
             Class<?> groupMembershipOperationEnum = null;
-            try {
-                // 먼저 CloseOptions 내부 클래스로 시도
-                groupMembershipOperationEnum = Class.forName(
-                    "org.apache.kafka.clients.consumer.CloseOptions$GroupMembershipOperation");
-            } catch (ClassNotFoundException e) {
-                // 독립 Enum일 수도 있음
-                groupMembershipOperationEnum = Class.forName(
-                    "org.apache.kafka.clients.consumer.GroupMembershipOperation");
+            
+            // CloseOptions 클래스의 내부 클래스로 먼저 시도
+            Class<?>[] innerClasses = closeOptionsClass.getDeclaredClasses();
+            for (Class<?> innerClass : innerClasses) {
+                if (innerClass.getSimpleName().equals("GroupMembershipOperation")) {
+                    groupMembershipOperationEnum = innerClass;
+                    log.info("✅ CloseOptions 내부 클래스에서 GroupMembershipOperation 찾음: {}", groupMembershipOperationEnum.getName());
+                    break;
+                }
             }
-            log.info("✅ GroupMembershipOperation Enum 찾음: {}", groupMembershipOperationEnum.getName());
+            
+            // 내부 클래스에서 찾지 못한 경우 여러 경로 시도
+            if (groupMembershipOperationEnum == null) {
+                String closeOptionsPackage = closeOptionsClass.getPackage().getName();
+                String[] possiblePaths = {
+                    closeOptionsClass.getName() + "$GroupMembershipOperation",
+                    closeOptionsPackage + ".GroupMembershipOperation",
+                    "org.apache.kafka.clients.consumer.GroupMembershipOperation"
+                };
+                
+                for (String path : possiblePaths) {
+                    try {
+                        groupMembershipOperationEnum = Class.forName(path);
+                        log.info("✅ GroupMembershipOperation Enum 찾음: {}", groupMembershipOperationEnum.getName());
+                        break;
+                    } catch (ClassNotFoundException e) {
+                        log.debug("경로 '{}'에서 GroupMembershipOperation를 찾을 수 없음", path);
+                    }
+                }
+            }
+            
+            if (groupMembershipOperationEnum == null) {
+                throw new ClassNotFoundException("GroupMembershipOperation Enum을 찾을 수 없습니다");
+            }
             
             // DONT_LEAVE_GROUP 사용
             Object dontLeaveGroup = Enum.valueOf((Class<Enum>) groupMembershipOperationEnum, "DONT_LEAVE_GROUP");
