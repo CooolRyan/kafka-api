@@ -69,10 +69,10 @@ public class KafkaConsumerService {
     @KafkaListener(
         topics = "jmeter", 
         groupId = "${spring.kafka.consumer.group-id}",
-        concurrency = "2",
-        containerFactory = "kafkaListenerContainerFactory"
+        concurrency = "2"
     )
     public void consumeBatch(List<ConsumerRecord<String, String>> records, Acknowledgment acknowledgment) {
+        log.debug("📥 jmeter 토픽에서 {}개 메시지 수신", records.size());
         try {
             if (records.isEmpty()) {
                 return;
@@ -105,8 +105,7 @@ public class KafkaConsumerService {
     @KafkaListener(
         topics = "jmeter", 
         groupId = "${spring.kafka.consumer.group-id}",
-        concurrency = "2",
-        containerFactory = "kafkaListenerContainerFactory"
+        concurrency = "2"
     )
     public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
         try {
