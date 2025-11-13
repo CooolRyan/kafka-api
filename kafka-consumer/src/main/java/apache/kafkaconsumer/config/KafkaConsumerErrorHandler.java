@@ -1,6 +1,8 @@
 package apache.kafkaconsumer.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.errors.UnreleasedInstanceIdException;
 import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.MessageListenerContainer;
@@ -20,6 +22,7 @@ public class KafkaConsumerErrorHandler implements CommonErrorHandler {
     @Override
     public void handleOtherException(Exception thrownException, 
                                      boolean committed,
+                                     Consumer<?, ?> consumer,
                                      MessageListenerContainer container) {
         
         Throwable cause = thrownException.getCause();
@@ -37,6 +40,15 @@ public class KafkaConsumerErrorHandler implements CommonErrorHandler {
         } else {
             log.error("❌ Consumer 에러 발생: {}", thrownException.getMessage(), thrownException);
         }
+    }
+
+    @Override
+    public void handleRemaining(Exception thrownException, 
+                                java.util.List<ConsumerRecord<?, ?>> records,
+                                Consumer<?, ?> consumer,
+                                MessageListenerContainer container) {
+        log.error("❌ 처리되지 않은 레코드가 있습니다: {}개", records.size());
+        log.error("   에러: {}", thrownException.getMessage(), thrownException);
     }
 }
 
