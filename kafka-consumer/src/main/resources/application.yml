@@ -82,9 +82,24 @@ spring:
         # - StatefulSet: kafka-consumer-0, kafka-consumer-1 (안정적)
         # - Deployment: kafka-consumer-abc123, kafka-consumer-def456 (매번 바뀜)
         # 
-        # StatefulSet 사용 시 같은 인덱스의 파드가 같은 group.instance.id를 사용하므로
-        # 롤링 업데이트 시 파티션 할당이 그대로 유지됨
-        group.instance.id: ${POD_NAME:${HOSTNAME:consumer-${random.value}}}  # Pod 이름 사용
+        # Static Group Membership 설정 (롤링 업데이트 시 파티션 할당 유지)
+        # 
+        # 동작 방식:
+        # 1. 이전 파드: kafka-consumer-0 (group.instance.id = kafka-consumer-0)
+        #    - 파티션 0, 1 할당
+        # 2. 이전 파드 종료 시작 → CloseOptions.REMAIN_IN_GROUP으로 consumer group에 머물러 있음
+        #    - 파티션 할당은 유지됨 (리밸런싱 없음)
+        # 3. 이전 파드가 완전히 종료됨 (terminationGracePeriodSeconds 동안)
+        # 4. 새 파드: kafka-consumer-0 (같은 group.instance.id)
+        #    - 이전 파드의 파티션 할당(0, 1)을 그대로 받음 (리밸런싱 없음!)
+        # 
+        # ⚠️ 중요: StatefulSet의 podManagementPolicy가 OrderedReady여야 함 (기본값)
+        # - 이전 파드가 완전히 종료된 후 새 파드가 시작됨
+        # - terminationGracePeriodSeconds가 충분히 길어야 함 (90초 이상 권장)
+        # 
+        # ⚠️ 주의: 이전 파드가 아직 consumer group에 있으면 UnreleasedInstanceIdException 발생
+        # 해결: StatefulSet이 순차적으로 파드를 종료/시작하므로 자동으로 해결됨
+        group.instance.id: ${POD_NAME:${HOSTNAME:consumer-${random.value}}}  # Pod 이름만 사용 (Static Group Membership)
         # Kafka 배치 처리 최적화 설정 (TPS 600 처리용)
         fetch.min.bytes: 1024  # 1KB 이상 모이면 즉시 가져오기 (대기 시간 최소화)
         fetch.max.wait.ms: 100  # 최대 100ms 대기 (빠른 응답)

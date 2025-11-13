@@ -148,3 +148,4 @@ Spring Kafka의 내부 구조상:
 2. **리플렉션 오버헤드**: 런타임에 클래스를 로드하므로 약간의 오버헤드 있음
 3. **Fallback 처리**: CloseOptions를 찾을 수 없으면 기본 `consumer.close(timeout)` 사용
 
+
