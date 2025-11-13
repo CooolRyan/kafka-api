@@ -28,7 +28,7 @@ spring:
 
     consumer:
       # 그룹 내에서 메시지를 소비할 그룹 ID
-      group-id: 'kafka-consumer-group'
+      #group-id: 'kafka-consumer-group'
       # 처음 시작할 때의 오프셋 위치, earliest는 가장 오래된 메시지부터
       auto-offset-reset: 'earliest'
       # Offset 자동 커밋 비활성화 (수동 커밋 사용)
@@ -120,7 +120,7 @@ spring:
       # 폴링 간격 (500ms) - 빠른 처리
       poll-timeout: 500
       # 에러 핸들러 설정
-      missing-topics-fatal: false
+      missing-topics-fatal: true  # 토픽이 없으면 에러 발생 (토픽 존재 여부 확인용)
 
   # JPA 설정
   jpa:
@@ -155,7 +155,7 @@ spring:
 logging:
   level:
     apache.kafkaconsumer: INFO
-    org.springframework.kafka: WARN
+    org.springframework.kafka: INFO  # KafkaListener 등록 확인용
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
     # GC 로그 설정
